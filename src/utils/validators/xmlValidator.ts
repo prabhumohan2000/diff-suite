@@ -1,4 +1,4 @@
-import { XMLParser, XMLError } from 'fast-xml-parser'
+import { XMLParser } from 'fast-xml-parser'
 
 export interface ValidationError {
   message: string
@@ -24,16 +24,14 @@ export function validateXML(xmlString: string): ValidationResult {
 
   const parser = new XMLParser({
     ignoreAttributes: false,
-    parseAttributeValue: false,
+    parseTagValue: true,
     trimValues: true,
-    parseTrueNumberOnly: false,
-    ignoreDeclaration: false,
-    ignorePiTags: false,
-    ignoreComment: false,
-    ignoreDoctype: false,
-    alwaysCreateTextNode: false,
-    isArray: () => false,
+    numberParseOptions: {
+      hex: true,
+      leadingZeros: true
+    },
     stopNodes: [],
+    isArray: () => false
   })
 
   try {

@@ -55,18 +55,16 @@ function normalizeXML(xmlString: string, options: ComparisonOptions): string {
 function parseXMLToObject(xmlString: string, options: ComparisonOptions): any {
   const parser = new XMLParser({
     ignoreAttributes: false,
-    parseAttributeValue: false,
+    parseTagValue: true,
     trimValues: options.ignoreWhitespace !== false, // Only trim if ignoring whitespace
-    parseTrueNumberOnly: false,
-    ignoreDeclaration: false,
-    ignorePiTags: false,
-    ignoreComment: false,
-    ignoreDoctype: false,
-    alwaysCreateTextNode: false,
+    numberParseOptions: {
+      hex: true,
+      leadingZeros: true
+    },
     isArray: () => false,
     attributeNamePrefix: '@_',
     textNodeName: '#text',
-    preserveOrder: false,
+    preserveOrder: false
   })
 
   return parser.parse(xmlString)
@@ -236,7 +234,7 @@ function compareXMLObjects(
   for (const normalizedKey of allNormalizedKeys) {
     const leftKey = leftElemMap.get(normalizedKey)
     const rightKey = rightElemMap.get(normalizedKey)
-    const currentPath = path ? `${path}.${leftKey || rightKey}` : (leftKey || rightKey)
+    const currentPath = path ? `${path}.${leftKey || rightKey || ''}` : (leftKey || rightKey || '')
     const leftHasKey = leftKey !== undefined
     const rightHasKey = rightKey !== undefined
 
