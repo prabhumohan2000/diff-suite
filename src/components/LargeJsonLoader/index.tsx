@@ -29,7 +29,7 @@ export default function LargeJsonLoader() {
   const [diffSummary, setDiffSummary] = useState<null | { added: number; removed: number; modified: number }>(null)
   const [differences, setDifferences] = useState<Array<{ type: string; path: string }> | null>(null)
 
-  const { parseJson, diffJson, isBusy, progressText } = useJsonWorker()
+  const { parseJson, parseJsonBlob, diffJson, isBusy, progressText } = useJsonWorker()
 
   // Debounced progress text is managed inside the hook already; we only expose it.
 
@@ -78,10 +78,28 @@ export default function LargeJsonLoader() {
     side === 'left' ? setLeftFileName(file.name) : setRightFileName(file.name)
     side === 'left' ? setLeftError(null) : setRightError(null)
 
-    const text = await readFileStreaming(file)
-    const res = await parseJson(text)
-    // Drop raw text to free memory ASAP
-    ;(text as any) = null
+    // If the File supports streaming, gather binary chunks and hand a Blob
+    // to the worker so heavy text decoding/parsing happens off the main thread.
+    let res
+    if ((file as any).stream) {
+      const chunks: Array<Uint8Array> = []
+      let loaded = 0
+      // @ts-ignore
+      for await (const chunk of (file as any).stream()) {
+        const uint8 = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : (chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBuffer))
+        chunks.push(uint8)
+        loaded += (uint8 as any).byteLength
+        // We could call onProgress here if needed
+      }
+  // Convert Uint8Array chunks to plain ArrayBuffers for Blob constructor
+  const buffers = chunks.map(u => u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength))
+  const blob = new Blob(buffers as BlobPart[], { type: 'application/json' })
+      res = await parseJsonBlob(blob)
+    } else {
+      const text = await readFileStreaming(file)
+      res = await parseJson(text)
+      ;(text as any) = null
+    }
 
     if (!res.ok) {
       const errStr = `${res.error.message}${res.error.line ? ` (line ${res.error.line}, col ${res.error.column})` : ''}`

@@ -308,7 +308,7 @@ export default function Home() {
           }
         }}
       />
-      <Container maxWidth="lg" className="flex-1 py-8 relative z-10">
+      <Container maxWidth="xl" className="flex-1 py-8 relative z-10">
         <ModeSelector
           formatType={formatType}
           actionType={actionType}

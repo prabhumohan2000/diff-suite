@@ -175,6 +175,12 @@ export function useJsonWorker() {
     [run]
   )
 
+  const parseJsonBlob = useCallback(
+    (blob: Blob, opts?: { computePrettyLines?: boolean }): Promise<JsonParseResult> =>
+      run<JsonParseResult>('parse', { blob, computePrettyLines: !!opts?.computePrettyLines }),
+    [run]
+  )
+
   const diffJson = useCallback(
     (left: any, right: any, opts?: { maxDiffs?: number; ignoreKeyOrder?: boolean; ignoreArrayOrder?: boolean }): Promise<JsonDiffResult> =>
       run<JsonDiffResult>('diff', { left, right, options: opts ?? {} }),
@@ -183,6 +189,7 @@ export function useJsonWorker() {
 
   return {
     parseJson,
+    parseJsonBlob,
     diffJson,
     cancel,
     isBusy,

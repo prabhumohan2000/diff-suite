@@ -5,7 +5,7 @@
  * Sends progress events and returns compact results.
  */
 
-export type ParsePayload = { text: string; computePrettyLines?: boolean }
+export type ParsePayload = { text?: string; blob?: Blob; computePrettyLines?: boolean }
 export type DiffPayload = { left: any; right: any; options?: { maxDiffs?: number; ignoreKeyOrder?: boolean; ignoreArrayOrder?: boolean } }
 
 type RequestMessage =
@@ -219,7 +219,7 @@ function jsonToPrettyLines(value: any, indent = 2): string[] {
 }
 
 // Main worker message handler
-self.onmessage = (e: MessageEvent<RequestMessage>) => {
+self.onmessage = async (e: MessageEvent<RequestMessage>) => {
   const { type, id } = e.data
   if (type === 'cancel') {
     cancelled[id] = true
@@ -227,11 +227,15 @@ self.onmessage = (e: MessageEvent<RequestMessage>) => {
   }
 
   if (type === 'parse') {
-    const { text, computePrettyLines } = e.data.payload
+    const { text, blob, computePrettyLines } = e.data.payload
+    let inputText: string | undefined
     try {
       postProgress(id, 'Parsing…')
+      // If a Blob was provided, read its text inside the worker to keep
+      // the main thread free of heavy string allocations.
+      inputText = blob ? await (blob as Blob).text() : (text as string)
       // JSON.parse is internally streaming in some engines; we rely on worker isolation
-      const json = JSON.parse(text)
+      const json = JSON.parse(inputText as string)
       if (cancelled[id]) return
 
       let prettyLinesLength: number | undefined
@@ -249,7 +253,7 @@ self.onmessage = (e: MessageEvent<RequestMessage>) => {
       let position: number | undefined
       const match = /position\s(\d+)/i.exec(message)
       if (match) position = Number(match[1])
-      const lc = computeLineCol(e.data.payload.text, position)
+  const lc = computeLineCol(inputText as string, position)
       postResult(id, {
         ok: false,
         error: {

@@ -1,0 +1,53 @@
+.largeTextarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  resize: none;
+  white-space: pre; /* allow horizontal scroll */
+  word-wrap: break-word;
+  overflow: auto;
+  height: 300px;
+  max-height: 300px;
+}
+
+@media (min-width: 900px) {
+  .largeTextarea {
+    height: 400px;
+    max-height: 400px;
+  }
+}
+
+.largeTextarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.largeTextarea::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.largeTextarea::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+}
+
+/* Light mode scrollbar */
+:global(.light) .largeTextarea::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+:global(.light) .largeTextarea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode scrollbar */
+:global(.dark) .largeTextarea::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+:global(.dark) .largeTextarea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
