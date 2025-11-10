@@ -122,7 +122,7 @@ export default function ModeSelector({
                 textTransform: 'none',
                 border: '1px solid rgba(124, 58, 237, 0.2)',
                 backgroundColor: 'rgba(255, 255, 255, 0.96)',
-                color: '#48494dff',
+                color: '#232325ff',
                 transition: 'all 0.3s ease',
                 '&:hover': {
                   backgroundColor: 'rgba(124, 58, 237, 0.1)',
@@ -144,7 +144,7 @@ export default function ModeSelector({
                   transform: 'translateY(0)',
                 },
                 '&.Mui-disabled': {
-                  opacity: 0.8,
+                  opacity: 0.5,
                 },
               },
             }}
