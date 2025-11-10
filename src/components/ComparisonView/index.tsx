@@ -369,8 +369,9 @@ export default function ComparisonView({
         <svg width={0} height={0}>
           <defs>
             <linearGradient id="gradientCheckbox" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#7c3aed" />
-              <stop offset="100%" stopColor="#7c3aed" />
+              <stop offset="0%" stopColor="#6b21a8" />
+              <stop offset="50%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#ec4899" />
             </linearGradient>
           </defs>
         </svg>
