@@ -3,6 +3,7 @@ import { compareXML } from '../utils/comparators/xmlComparator'
 import { compareTextEnhanced } from '../utils/comparators/textComparator'
 import { validateJSON } from '../utils/validators/jsonValidator'
 import { validateXML } from '../utils/validators/xmlValidator'
+import { createLineDiff } from '../utils/diffUtils/lineDiff'
 
 type MessageIn = {
   id: string
@@ -51,7 +52,15 @@ self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
       }
 
       const comparisonResult = compareJSON(left, right, options || {})
-      const out: PostResult = { id, result: comparisonResult }
+      // Optionally include precomputed line diff for UI (avoids main-thread work)
+      let resultWithLines: any = comparisonResult
+      if (options?.includeLineDiff) {
+        try {
+          const ld = createLineDiff(left, right, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
+          resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
+        } catch (_) {}
+      }
+      const out: PostResult = { id, result: resultWithLines }
       // @ts-ignore
       self.postMessage(out)
       return
@@ -85,7 +94,14 @@ self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
       }
 
       const comparisonResult = compareXML(left, right, options || {})
-      const out: PostResult = { id, result: comparisonResult }
+      let resultWithLines: any = comparisonResult
+      if (options?.includeLineDiff) {
+        try {
+          const ld = createLineDiff(left, right, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
+          resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
+        } catch (_) {}
+      }
+      const out: PostResult = { id, result: resultWithLines }
       // @ts-ignore
       self.postMessage(out)
       return

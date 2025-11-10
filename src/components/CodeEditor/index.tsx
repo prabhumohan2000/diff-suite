@@ -1,8 +1,10 @@
 'use client'
 
-import React from 'react'
-import { TextField, Box, Typography } from '@mui/material'
+import React, { memo, useEffect, useMemo, useRef } from 'react'
+import { Box, Typography } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { FormatType } from '@/types'
+import styles from './CodeEditor.module.css'
 
 interface CodeEditorProps {
   value: string
@@ -16,7 +18,7 @@ interface CodeEditorProps {
   helperText?: string
 }
 
-export default function CodeEditor({
+function CodeEditor({
   value,
   onChange,
   placeholder,
@@ -27,12 +29,33 @@ export default function CodeEditor({
   error = false,
   helperText,
 }: CodeEditorProps) {
+  const theme = useTheme()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const isLarge = useMemo(() => value.length > 300_000, [value])
+
   const getPlaceholder = () => {
     if (placeholder) return placeholder
     if (formatType === 'json') return 'Paste your JSON here...'
     if (formatType === 'xml') return 'Paste your XML here...'
     return 'Paste your text here...'
   }
+
+  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const next = (e.target as HTMLTextAreaElement).value
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => onChange(next), isLarge ? 180 : 60)
+  }
+
+  // Keep the uncontrolled textarea in sync when external value changes (e.g., reset)
+  useEffect(() => {
+    if (textareaRef.current && textareaRef.current.value !== value) {
+      textareaRef.current.value = value
+    }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [value])
 
   return (
     <Box className="w-full">
@@ -45,95 +68,46 @@ export default function CodeEditor({
           {label}
         </Typography>
       )}
-      <TextField
-        fullWidth
-        multiline
-        value={value}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+      <textarea
+        ref={textareaRef}
+        defaultValue={value}
+        onInput={handleInput}
         placeholder={getPlaceholder()}
-        error={error}
-        helperText={helperText}
         disabled={readOnly}
-        variant="outlined"
-        className="font-mono smooth-transition"
-        sx={{
-          '& .MuiOutlinedInput-root': {
-            backgroundColor: 'background.paper',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '12px',
-            border: '1px solid',
-            borderColor: 'divider',
-            boxShadow: 'none',
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              borderColor: 'divider',
-            },
-            '&.Mui-focused': {
-              borderColor: 'primary.main',
-              '& fieldset': {
-                borderColor: 'primary.main !important',
-                borderWidth: '1px !important',
-              },
-            },
-            '&.Mui-disabled': {
-              backgroundColor: 'action.disabledBackground',
-            },
-            '& input::placeholder': {
-              color: 'text.secondary',
-              opacity: 1,
-            },
-          },
-          '& .MuiInputBase-root': {
-            fontFamily: 'monospace',
-            fontSize: '0.875rem',
-            height: { xs: '300px', md: '400px' },
-            maxHeight: { xs: '300px', md: '400px' },
-            alignItems: 'flex-start',
-            overflow: 'hidden',
-          },
-          '& .MuiInputBase-input': {
-            fontFamily: 'monospace',
-            lineHeight: 1.5,
-            padding: 2,
-            height: '100%',
-            overflow: 'auto !important',
-            overflowY: 'auto',
-            overflowX: 'auto',
-            '&::-webkit-scrollbar': {
-              width: '8px',
-              height: '8px',
-            },
-            '&::-webkit-scrollbar-track': {
-              backgroundColor: 'transparent',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: (theme) => 
-                theme.palette.mode === 'dark' 
-                  ? 'rgba(255, 255, 255, 0.2)' 
-                  : 'rgba(0, 0, 0, 0.2)',
-              borderRadius: '4px',
-              transition: 'background-color 0.2s',
-              '&:hover': {
-                backgroundColor: (theme) => 
-                  theme.palette.mode === 'dark' 
-                    ? 'rgba(255, 255, 255, 0.3)' 
-                    : 'rgba(0, 0, 0, 0.3)',
-              },
-            },
-          },
-          '& textarea': {
-            resize: 'none',
-            height: '100% !important',
-            overflow: 'auto !important',
-          },
+        aria-label={label || 'Code editor'}
+        className={styles.largeTextarea}
+        style={{
+          width: '100%',
+          fontFamily: 'monospace',
+          fontSize: '0.875rem',
+          lineHeight: 1.5,
+          padding: 12,
+          borderRadius: 12,
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          boxSizing: 'border-box',
+          resize: 'none',
+          whiteSpace: 'pre-wrap',
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          wordBreak: 'break-word',
+          overflowWrap: 'anywhere',
         }}
-        InputProps={{
-          sx: {
-            height: '100%',
-          },
-        }}
+        data-gramm="false"
+        data-enable-grammarly="false"
+        data-gramm_editor="false"
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
       />
+      {helperText && (
+        <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: error ? 'error.main' : 'text.secondary' }}>
+          {helperText}
+        </Typography>
+      )}
     </Box>
   )
 }
+export default memo(CodeEditor)
 

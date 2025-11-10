@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef, startTransition } from 'react'
 import {
   Box,
   Button,
@@ -121,7 +121,7 @@ export default function ComparisonView({
   };
 
   const isLargeContent = useCallback((content: string) => {
-    return content.length > 100000 // Consider content large if over 100KB
+    return content.length > 50_000 // Consider content large if over 50KB
   }, [])
 
   useEffect(() => {
@@ -137,11 +137,19 @@ export default function ComparisonView({
           console.error('Worker error:', error)
           setSnackbar({ open: true, message: String(error), severity: 'error' })
           setLoading(false)
+          try {
+            // @ts-ignore
+            window.globalOverlay?.hide?.()
+          } catch {}
           return
         }
         setResult(result)
         setShowResults(true)
         setLoading(false)
+        try {
+          // @ts-ignore
+          window.globalOverlay?.hide?.()
+        } catch {}
         // Clear processing notification if shown
         setSnackbar({ open: false, message: '', severity: 'info' })
       }
@@ -158,6 +166,23 @@ export default function ComparisonView({
     }
   }, [])
 
+  // Expose an opener so parent toolbar Settings button can anchor this menu
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore
+      window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
+        if (anchor) setAnchorEl(anchor)
+        else setAnchorEl(document.body as unknown as HTMLElement)
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewOpenSettings = undefined
+      }
+    }
+  }, [])
+
   const handleCompare = useCallback(() => {
     setLoading(true)
     // Show immediate feedback for large content
@@ -167,13 +192,17 @@ export default function ComparisonView({
         message: "Processing large content, this may take a moment...",
         severity: "info"
       })
+      try {
+        // @ts-ignore
+        window.globalOverlay?.show?.('Comparing…')
+      } catch {}
     }
     // Use worker for large inputs when available
     if (workerRef.current && (isLargeContent(leftContent) || isLargeContent(rightContent))) {
       const id = `${Date.now()}-${Math.random()}`
       pendingRequestIdRef.current = id
       try {
-        workerRef.current.postMessage({ id, left: leftContent, right: rightContent, formatType, options })
+        workerRef.current.postMessage({ id, left: leftContent, right: rightContent, formatType, options: { ...options, includeLineDiff: formatType !== 'text' } })
       } catch (err) {
         // If worker postMessage fails, fallback to main thread
         console.error('Worker postMessage failed, falling back to main-thread compare', err)
@@ -278,6 +307,10 @@ export default function ComparisonView({
             message: "",
             severity: "info"
           })
+          try {
+            // @ts-ignore
+            window.globalOverlay?.hide?.()
+          } catch {}
         }
       }
     }, 0)
@@ -286,11 +319,33 @@ export default function ComparisonView({
   const handleOptionChange = (key: keyof ComparisonOptions) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    // Reset current results to require clicking Compare again
+    setResult(null)
+    setShowResults(false)
     onOptionsChange({
       ...options,
       [key]: event.target.checked,
     } as ComparisonOptions)
   }
+
+  const handleToggleCaseSensitive = useCallback(() => {
+    setResult(null)
+    setShowResults(false)
+    onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })
+  }, [onOptionsChange, options])
+
+  // When user edits either textarea, hide results to avoid heavy recompute
+  const handleLeftChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onLeftContentChange(content)
+  }, [onLeftContentChange])
+
+  const handleRightChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onRightContentChange(content)
+  }, [onRightContentChange])
 
   return (
     <Box className="w-full relative z-10">
@@ -327,10 +382,10 @@ export default function ComparisonView({
                   '& path': {
                     fill: 'url(#gradientCheckbox)',
                   },
-                  color: '#6b21a8',
+                  color: '#7c3aed',
                 }} />
               ) : (
-                <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+                <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
               )}
             </ListItemIcon>
             <ListItemText>Ignore Key Order</ListItemText>
@@ -343,25 +398,25 @@ export default function ComparisonView({
                 '& path': {
                   fill: 'url(#gradientCheckbox)',
                 },
-                color: '#6b21a8',
+                color: '#7c3aed',
               }} />
             ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
             )}
           </ListItemIcon>
           <ListItemText>Ignore Whitespace</ListItemText>
         </MenuItem>
-        <MenuItem onClick={(e) => onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })}>
+        <MenuItem onClick={handleToggleCaseSensitive}>
           <ListItemIcon sx={{ minWidth: '36px' }}>
             {options.caseSensitive ? (
               <CheckBoxIcon sx={{ 
                 '& path': {
                   fill: 'url(#gradientCheckbox)',
                 },
-                color: '#6b21a8',
+                color: '#7c3aed',
               }} />
             ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
             )}
           </ListItemIcon>
           <ListItemText>Case Sensitive</ListItemText>
@@ -369,9 +424,9 @@ export default function ComparisonView({
         <svg width={0} height={0}>
           <defs>
             <linearGradient id="gradientCheckbox" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6b21a8" />
-              <stop offset="50%" stopColor="#a855f7" />
-              <stop offset="100%" stopColor="#ec4899" />
+              <stop offset="0%" stopColor="#7c3aed" />
+              <stop offset="50%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#7c3aed" />
             </linearGradient>
           </defs>
         </svg>
@@ -391,7 +446,7 @@ export default function ComparisonView({
                 const reader = new FileReader()
                 reader.onload = (e) => {
                   const content = e.target?.result as string
-                  onLeftContentChange(content)
+                  handleLeftChange(content)
                 }
                 reader.readAsText(file)
               }}
@@ -400,7 +455,7 @@ export default function ComparisonView({
             >
               <CodeEditor
                 value={leftContent}
-                onChange={onLeftContentChange}
+                onChange={handleLeftChange}
                 formatType={formatType}
                 label=""
                 placeholder={`Paste first ${formatType.toUpperCase()} here...`}
@@ -443,7 +498,7 @@ export default function ComparisonView({
                 const reader = new FileReader()
                 reader.onload = (e) => {
                   const content = e.target?.result as string
-                  onRightContentChange(content)
+                  handleRightChange(content)
                 }
                 reader.readAsText(file)
               }}
@@ -452,7 +507,7 @@ export default function ComparisonView({
             >
               <CodeEditor
                 value={rightContent}
-                onChange={onRightContentChange}
+                onChange={handleRightChange}
                 formatType={formatType}
                 label=""
                 placeholder={`Paste second ${formatType.toUpperCase()} here...`}
@@ -466,7 +521,7 @@ export default function ComparisonView({
         <Button
           variant="contained"
           size="large"
-          onClick={handleCompare}
+          onClick={() => startTransition(() => handleCompare())}
           disabled={loading || !leftContent.trim() || !rightContent.trim()}
           className="w-full sm:w-auto min-w-[200px] smooth-transition"
           startIcon={loading ? null : <CompareArrowsIcon />}
@@ -493,6 +548,8 @@ export default function ComparisonView({
               boxShadow: 'none',
             },
           }}
+          disableRipple
+          disableElevation
         >
           {loading ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -503,31 +560,13 @@ export default function ComparisonView({
             'Compare'
           )}
         </Button>
-        <IconButton 
-          onClick={handleMenuClick}
-          size="large"
-          className="smooth-transition"
-          sx={{
-            background: '#7c3aed',
-            color: 'white',
-            '&:hover': {
-              background: '#8b5cf6',
-              transform: 'translateY(-2px)',
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-            },
-          }}
-        >
-          <SettingsIcon />
-        </IconButton>
       </Box>
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })}

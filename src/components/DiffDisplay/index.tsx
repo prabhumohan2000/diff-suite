@@ -1,6 +1,8 @@
 'use client'
 
 import { Box, Paper, Typography, Grid, Stack, Chip, useTheme } from '@mui/material'
+import { FixedSizeList as List, VariableSizeList as VList, ListChildComponentProps } from 'react-window'
+import AutoSizer from 'react-virtualized-auto-sizer'
 import { FormatType, ComparisonResult } from '@/types'
 import { createLineDiff } from '@/utils/diffUtils/lineDiff'
 
@@ -67,9 +69,12 @@ export default function DiffDisplay({
     removedText: isDark ? '#f472b6' : '#db2777',
   }
 
-  // For JSON and XML, create line-by-line diff for inline highlighting
+  // For JSON and XML, virtualized side-by-side view
   if ((formatType === 'json' || formatType === 'xml') && result.differences && result.differences.length > 0) {
-    const lineDiff = createLineDiff(leftContent, rightContent)
+    const hasPrecomputed = (result as any).leftLines && (result as any).rightLines
+    const lineDiff = hasPrecomputed
+      ? { leftLines: (result as any).leftLines as any[], rightLines: (result as any).rightLines as any[] }
+      : createLineDiff(leftContent, rightContent)
     
     return (
       <Box>
@@ -121,150 +126,16 @@ export default function DiffDisplay({
             />
           </Stack>
         </Paper>
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Paper
-              elevation={0}
-              className="glass-card dark:glass-card-dark smooth-transition"
-              sx={{
-                p: 3,
-                maxHeight: '500px',
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                },
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Left (Original)
-              </Typography>
-              <Box>
-                {lineDiff.leftLines.map((line, index) => {
-                  const isDiffLine = result.differences?.some(diff => {
-                    const diffPath = diff.path || diff.element || ''
-                    return line.content.includes(diffPath) || 
-                           (diff.type === 'removed' && line.type === 'removed')
-                  })
-                  
-                  return (
-                    <Box
-                      key={index}
-                      sx={{
-                        p: 0.5,
-                        backgroundColor:
-                          line.type === 'removed'
-                            ? colors.removed
-                            : isDiffLine && line.type === 'unchanged'
-                            ? colors.modified
-                            : 'transparent',
-                        borderLeft:
-                          line.type === 'removed' 
-                            ? `3px solid ${colors.removedBorder}` 
-                            : isDiffLine && line.type === 'unchanged'
-                            ? `3px solid ${colors.modifiedBorder}`
-                            : 'none',
-                      }}
-                    >
-                      <Typography
-                        component="span"
-                        sx={{
-                          color: 'text.secondary',
-                          mr: 1,
-                          fontFamily: 'monospace',
-                          minWidth: '40px',
-                          display: 'inline-block',
-                        }}
-                      >
-                        {line.lineNumber}
-                      </Typography>
-                      <Typography
-                        component="span"
-                        sx={{
-                          fontFamily: 'monospace',
-                          whiteSpace: 'pre-wrap',
-                        }}
-                      >
-                        {line.content}
-                      </Typography>
-                    </Box>
-                  )
-                })}
-              </Box>
-            </Paper>
+            <VirtualPaper title="">
+              <VirtualList lines={lineDiff.leftLines} colors={colors} inlineChanges={false} />
+            </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper
-              elevation={0}
-              className="glass-card dark:glass-card-dark smooth-transition"
-              sx={{
-                p: 3,
-                maxHeight: '500px',
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                },
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Right (Modified)
-              </Typography>
-              <Box>
-                {lineDiff.rightLines.map((line, index) => {
-                  const isDiffLine = result.differences?.some(diff => {
-                    const diffPath = diff.path || diff.element || ''
-                    return line.content.includes(diffPath) || 
-                           (diff.type === 'added' && line.type === 'added')
-                  })
-                  
-                  return (
-                    <Box
-                      key={index}
-                      sx={{
-                        p: 0.5,
-                        backgroundColor:
-                          line.type === 'added'
-                            ? colors.added
-                            : isDiffLine && line.type === 'unchanged'
-                            ? colors.modified
-                            : 'transparent',
-                        borderLeft:
-                          line.type === 'added' 
-                            ? `3px solid ${colors.addedBorder}` 
-                            : isDiffLine && line.type === 'unchanged'
-                            ? `3px solid ${colors.modifiedBorder}`
-                            : 'none',
-                      }}
-                    >
-                      <Typography
-                        component="span"
-                        sx={{
-                          color: 'text.secondary',
-                          mr: 1,
-                          fontFamily: 'monospace',
-                          minWidth: '40px',
-                          display: 'inline-block',
-                        }}
-                      >
-                        {line.lineNumber}
-                      </Typography>
-                      <Typography
-                        component="span"
-                        sx={{
-                          fontFamily: 'monospace',
-                          whiteSpace: 'pre-wrap',
-                        }}
-                      >
-                        {line.content}
-                      </Typography>
-                    </Box>
-                  )
-                })}
-              </Box>
-            </Paper>
+            <VirtualPaper title="">
+              <VirtualList lines={lineDiff.rightLines} colors={colors} inlineChanges={false} />
+            </VirtualPaper>
           </Grid>
         </Grid>
       </Box>
@@ -274,151 +145,42 @@ export default function DiffDisplay({
   if (formatType === 'text' && result.leftLines && result.rightLines) {
     return (
       <Box>
-        <Paper elevation={1} sx={{ p: 1, mb: 2 }}>
+        <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 1, mb: 2 }}>
           <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip
-              label="Added"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.added, 
-                border: `1px solid ${colors.addedBorder}`,
-                color: colors.addedText,
-              }}
-            />
-            <Chip
-              label="Removed"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.removed, 
-                border: `1px solid ${colors.removedBorder}`,
-                color: colors.removedText,
-              }}
-            />
-            <Chip
-              label="Modified"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.modified, 
-                border: `1px solid ${colors.modifiedBorder}`,
-              }}
-            />
+            <Chip label="Added" size="small" sx={{ backgroundColor: colors.added, border: `1px solid ${colors.addedBorder}`, color: colors.addedText }} />
+            <Chip label="Removed" size="small" sx={{ backgroundColor: colors.removed, border: `1px solid ${colors.removedBorder}`, color: colors.removedText }} />
+            <Chip label="Modified" size="small" sx={{ backgroundColor: colors.modified, border: `1px solid ${colors.modifiedBorder}` }} />
           </Stack>
         </Paper>
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Paper
-              elevation={0}
-              className="glass-card dark:glass-card-dark smooth-transition"
-              sx={{
-                p: 3,
-                maxHeight: '500px',
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                },
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Left (Original)
-              </Typography>
+            <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 2, maxHeight: 500, overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.875rem', lineHeight: 1.5 }}>
+              {/* <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Left (Original)</Typography> */}
               <Box>
-                {result.leftLines.map((line, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      p: 0.5,
-                      backgroundColor:
-                        line.type === 'removed'
-                          ? colors.removed
-                          : line.type === 'unchanged'
-                          ? 'transparent'
-                          : colors.modified,
-                      borderLeft:
-                        line.type === 'removed' ? `3px solid ${colors.removedBorder}` : 'none',
-                    }}
-                  >
-                    <Typography
-                      component="span"
-                      sx={{
-                        color: 'text.secondary',
-                        mr: 1,
-                        fontFamily: 'monospace',
-                        minWidth: '40px',
-                        display: 'inline-block',
-                      }}
-                    >
+                {result.leftLines.map((line, idx) => (
+                  <Box key={idx} sx={{ py: 0.25 }}>
+                    <Typography component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: '36px', display: 'inline-block', userSelect: 'none' }}>
                       {line.lineNumber}
                     </Typography>
-                      <Typography
-                        component="span"
-                        sx={{
-                          fontFamily: 'monospace',
-                          whiteSpace: 'pre-wrap',
-                        }}
-                      >
-                        {renderLineWithChanges(line, colors)}
-                      </Typography>
+                    <Typography component="span" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {renderLineWithChanges(line as any, colors)}
+                    </Typography>
                   </Box>
                 ))}
               </Box>
             </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper
-              elevation={0}
-              className="glass-card dark:glass-card-dark smooth-transition"
-              sx={{
-                p: 3,
-                maxHeight: '500px',
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                },
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Right (Modified)
-              </Typography>
+            <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 2, maxHeight: 500, overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.875rem', lineHeight: 1.5 }}>
+              {/* <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Right (Modified)</Typography> */}
               <Box>
-                {result.rightLines.map((line, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      p: 0.5,
-                      backgroundColor:
-                        line.type === 'added'
-                          ? colors.added
-                          : line.type === 'unchanged'
-                          ? 'transparent'
-                          : colors.modified,
-                      borderLeft:
-                        line.type === 'added' ? `3px solid ${colors.addedBorder}` : 'none',
-                    }}
-                  >
-                    <Typography
-                      component="span"
-                      sx={{
-                        color: 'text.secondary',
-                        mr: 1,
-                        fontFamily: 'monospace',
-                        minWidth: '40px',
-                        display: 'inline-block',
-                      }}
-                    >
+                {result.rightLines.map((line, idx) => (
+                  <Box key={idx} sx={{ py: 0.25 }}>
+                    <Typography component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: '36px', display: 'inline-block', userSelect: 'none' }}>
                       {line.lineNumber}
                     </Typography>
-                    <Typography
-                      component="span"
-                      sx={{
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {renderLineWithChanges(line, colors)}
+                    <Typography component="span" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {renderLineWithChanges(line as any, colors)}
                     </Typography>
                   </Box>
                 ))}
@@ -492,5 +254,77 @@ export default function DiffDisplay({
   }
 
   return null
+}
+
+// Virtualized paper wrapper and list; tuned to match editor font sizing
+function VirtualPaper({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 1.5 }}>
+      {title ? (
+        <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>{title}</Typography>
+      ) : null}
+      <Box sx={{ height: 460, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.875rem', lineHeight: 1.5 }}>
+        {children}
+      </Box>
+    </Paper>
+  )
+}
+
+function VirtualList({
+  lines,
+  colors,
+  inlineChanges,
+}: {
+  lines: Array<{ lineNumber: number; type: 'added' | 'removed' | 'unchanged'; content: string; changes?: any[] }>
+  colors: any
+  inlineChanges: boolean
+}) {
+  const ROW_HEIGHT = 20
+  const Row = ({ index, style }: ListChildComponentProps) => {
+    const line = lines[index]
+    const bg = inlineChanges ? 'transparent' : (line.type === 'added' ? colors.added : line.type === 'removed' ? colors.removed : 'transparent')
+    const borderLeft = inlineChanges ? 'none' : (line.type === 'added' ? `2px solid ${colors.addedBorder}` : line.type === 'removed' ? `2px solid ${colors.removedBorder}` : 'none')
+    return (
+      <Box style={style as React.CSSProperties} sx={{ px: 0.5, backgroundColor: bg, borderLeft, display: 'flex', alignItems: 'center' }}>
+        <Box component="span" sx={{ color: 'text.secondary', pr: 1, width: 36, textAlign: 'right', userSelect: 'none' }}>
+          {line.lineNumber}
+        </Box>
+        <Box component="span" sx={{ whiteSpace: inlineChanges ? 'pre-wrap' : 'pre', wordBreak: inlineChanges ? 'break-word' : 'normal', overflow: inlineChanges ? 'visible' : 'hidden', textOverflow: inlineChanges ? 'unset' : 'clip', flex: 1 }}>
+          {inlineChanges ? renderLineWithChanges(line as any, colors) : line.content}
+        </Box>
+      </Box>
+    )
+  }
+
+  return (
+    <AutoSizer>
+      {({ height, width }) => {
+        if (!inlineChanges) {
+          return (
+            <List height={height} width={width} itemCount={lines.length} itemSize={ROW_HEIGHT} overscanCount={6}>
+              {Row}
+            </List>
+          )
+        }
+        // Variable-size list for wrapped text lines
+        const gutter = 36 + 8
+        const avail = Math.max(40, width - gutter)
+        // Match editor metrics (monospace, 0.875rem ~ 14px). Typical char width ≈ 8px
+        const charWidth = 8
+        const lineHeight = 22 // slightly larger to respect 1.5 line-height and padding
+        const getItemSize = (index: number) => {
+          const l: any = lines[index]
+          const len = l.changes ? l.changes.reduce((a: number, c: any) => a + String(c.value || '').length, 0) : String(l.content || '').length
+          const rows = Math.max(1, Math.ceil((len * charWidth) / avail))
+          return rows * lineHeight + 6
+        }
+        return (
+          <VList height={height} width={width} itemCount={lines.length} itemSize={getItemSize as any} overscanCount={4}>
+            {Row}
+          </VList>
+        )
+      }}
+    </AutoSizer>
+  )
 }
 

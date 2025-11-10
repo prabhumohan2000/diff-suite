@@ -111,27 +111,36 @@ export default function FileDropZone({
         })
       }
 
-      const reader = new FileReader()
-      reader.onload = () => {
-        onFileDrop(file, side)
+      // Defer processing so the main thread can paint the overlay/progress
+      setTimeout(() => {
+        // Use async File API to read text; resolves off the main thread
         if (isLargeFile(file)) {
-          setIsProcessing(false)
-          setSnackbar({
-            open: true,
-            message: 'File processed successfully',
-            severity: 'success'
-          })
+          try {
+            // @ts-ignore
+            window.globalOverlay?.show?.('Reading file…')
+          } catch {}
         }
-      }
-      reader.onerror = () => {
-        setIsProcessing(false)
-        setSnackbar({
-          open: true,
-          message: 'Error reading file',
-          severity: 'error'
-        })
-      }
-      reader.readAsText(file)
+        file.text()
+          .then(() => {
+            onFileDrop(file, side)
+            if (isLargeFile(file)) {
+              setIsProcessing(false)
+              setSnackbar({ open: true, message: 'File processed successfully', severity: 'success' })
+              try {
+                // @ts-ignore
+                window.globalOverlay?.hide?.()
+              } catch {}
+            }
+          })
+          .catch(() => {
+            setIsProcessing(false)
+            setSnackbar({ open: true, message: 'Error reading file', severity: 'error' })
+            try {
+              // @ts-ignore
+              window.globalOverlay?.hide?.()
+            } catch {}
+          })
+      }, 0)
     } else {
       // Show feedback for invalid file types using snackbar
       const typeLabel =
@@ -255,7 +264,7 @@ export default function FileDropZone({
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ open: false, message: '', severity: 'error' })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setSnackbar({ open: false, message: '', severity: 'error' })}
