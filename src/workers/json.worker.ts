@@ -174,7 +174,8 @@ function jsonToPrettyLines(value: any, indent = 2): string[] {
           // Restore closing after children
           lines.push(pfx + ']')
           // Now actually expand children via stack method
-          stack.push({ v: { __arrWrapper__: true, value: v, index: i, depth } as any })
+          // Push a wrapper frame where `v` is the marker and `depth` is the frame depth
+          stack.push({ v: { __arrWrapper__: true, value: v, index: i } as any, depth })
           // Fallback for non-object added above; break as we switch strategy
           break
         } else {
