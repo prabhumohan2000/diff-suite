@@ -46,11 +46,14 @@ export default function DiffDisplay({
   leftContent,
   rightContent,
 }: DiffDisplayProps) {
+  // Call hooks unconditionally at top-level to satisfy React rules of hooks
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
+
+  // Early return when inputs are empty - after hooks have been called
   if (!leftContent.trim() || !rightContent.trim()) {
     return null
   }
-  const theme = useTheme()
-  const isDark = theme.palette.mode === 'dark'
 
   // Color scheme based on theme
   const colors = {
