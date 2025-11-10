@@ -46,6 +46,9 @@ export default function DiffDisplay({
   leftContent,
   rightContent,
 }: DiffDisplayProps) {
+  if (!leftContent.trim() || !rightContent.trim()) {
+    return null
+  }
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
 

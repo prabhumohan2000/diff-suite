@@ -57,10 +57,51 @@ export default function ComparisonView({
   onOptionsChange,
 }: ComparisonViewProps) {
   const [result, setResult] = useState<ComparisonResult | null>(null)
+  const [showResults, setShowResults] = useState(false)
   const [loading, setLoading] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const workerRef = useRef<Worker | null>(null)
   const pendingRequestIdRef = useRef<string | null>(null)
+
+  // Reset all states when inputs are cleared
+  useEffect(() => {
+    if (!leftContent.trim() || !rightContent.trim()) {
+      setResult(null)
+      setShowResults(false)
+      setLoading(false)
+      if (workerRef.current) {
+        workerRef.current.terminate()
+        workerRef.current = null
+      }
+      pendingRequestIdRef.current = null
+    }
+  }, [leftContent, rightContent])
+
+  // Expose reset function to parent
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore - we know this exists from the parent component
+      window.comparisonViewResetRef = {
+        current: () => {
+          setResult(null)
+          setShowResults(false)
+          setLoading(false)
+          if (workerRef.current) {
+            workerRef.current.terminate()
+            workerRef.current = null
+          }
+          pendingRequestIdRef.current = null
+          setAnchorEl(null) // Close the settings menu if open
+        }
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewResetRef = null
+      }
+    }
+  }, [])
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -99,6 +140,7 @@ export default function ComparisonView({
           return
         }
         setResult(result)
+        setShowResults(true)
         setLoading(false)
         // Clear processing notification if shown
         setSnackbar({ open: false, message: '', severity: 'info' })
@@ -169,6 +211,7 @@ export default function ComparisonView({
                 } : undefined
               }
             })
+            setShowResults(true)
             return
           }
 
@@ -201,6 +244,7 @@ export default function ComparisonView({
                 } : undefined
               }
             })
+            setShowResults(true)
             return
           }
 
@@ -217,11 +261,13 @@ export default function ComparisonView({
         }
 
         setResult(comparisonResult)
+        setShowResults(true)
       } catch (error) {
         setResult({
           identical: false,
           summary: { added: 0, removed: 0, modified: 0 },
         })
+        setShowResults(true)
         console.error('Comparison error:', error)
       } finally {
         setLoading(false)
@@ -323,9 +369,8 @@ export default function ComparisonView({
         <svg width={0} height={0}>
           <defs>
             <linearGradient id="gradientCheckbox" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6b21a8" />
-              <stop offset="50%" stopColor="#a855f7" />
-              <stop offset="100%" stopColor="#ec4899" />
+              <stop offset="0%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#7c3aed" />
             </linearGradient>
           </defs>
         </svg>
@@ -425,10 +470,8 @@ export default function ComparisonView({
           className="w-full sm:w-auto min-w-[200px] smooth-transition"
           startIcon={loading ? null : <CompareArrowsIcon />}
           sx={{
-            background: loading 
-              ? 'linear-gradient(135deg, #5b21b6, #db2777)'
-              : 'linear-gradient(135deg, #6b21a8, #a855f7, #ec4899)',
-            boxShadow: '0 4px 16px rgba(236, 72, 153, 0.4)',
+            background: loading ? '#8a4baf' : '#7c3aed',
+            boxShadow: '0 4px 16px rgba(124, 58, 237, 0.3)',
             fontWeight: 700,
             textTransform: 'none',
             py: 1.5,
@@ -464,10 +507,10 @@ export default function ComparisonView({
           size="large"
           className="smooth-transition"
           sx={{
-            background: 'linear-gradient(135deg, #6b21a8, #a855f7)',
+            background: '#7c3aed',
             color: 'white',
             '&:hover': {
-              background: 'linear-gradient(135deg, #7c3aed, #c084fc)',
+              background: '#8b5cf6',
               transform: 'translateY(-2px)',
             },
             '&:active': {
@@ -495,7 +538,7 @@ export default function ComparisonView({
         </Alert>
       </Snackbar>
 
-      {result && (
+      {showResults && result && leftContent.trim() && rightContent.trim() && (
         <Box className="mt-6 smooth-transition">
           {result.errors ? (
             <>
@@ -649,4 +692,3 @@ export default function ComparisonView({
     </Box>
   )
 }
-

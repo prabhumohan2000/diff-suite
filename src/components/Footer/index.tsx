@@ -8,7 +8,7 @@ export default function Footer() {
       component="footer"
       className="mt-auto py-6"
       sx={{
-        background: 'linear-gradient(90deg, #6b21a8, #a855f7, #ec4899)',
+        background: '#7c3aed',
         color: 'white',
         boxShadow: '0 -4px 20px rgba(168, 85, 247, 0.3)',
       }}
@@ -32,7 +32,7 @@ export default function Footer() {
           </Typography>
           <Stack direction="row" spacing={3} className="flex-row gap-6">
             <Link
-              href="#"
+              href="https://github.com/prabhumohan2000/diff-suite"
               sx={{
                 color: 'white',
                 opacity: 0.9,
@@ -46,21 +46,7 @@ export default function Footer() {
               GitHub
             </Link>
             <Link
-              href="#"
-              sx={{
-                color: 'white',
-                opacity: 0.9,
-                fontSize: '0.875rem',
-                '&:hover': {
-                  opacity: 1,
-                  color: 'white',
-                },
-              }}
-            >
-              Documentation
-            </Link>
-            <Link
-              href="#"
+              href="https://github.com/prabhumohan2000/diff-suite?tab=readme-ov-file#diff-suite---jsonxmltext-validator--comparator"
               sx={{
                 color: 'white',
                 opacity: 0.9,

@@ -35,7 +35,7 @@ export default function Header({ enableStorage = true, onStorageToggle }: Header
         position="sticky"
         elevation={trigger ? 8 : 4}
         sx={{
-          background: 'linear-gradient(90deg, #6b21a8, #a855f7, #ec4899)',
+          background: '#7c3aed',
           backdropFilter: 'blur(10px)',
           color: 'white',
           transition: 'all 0.3s ease',

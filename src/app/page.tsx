@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Container,
   Box,
@@ -195,9 +195,36 @@ export default function Home() {
   );
   
 
+  // Key for forcing remount of components
+  const [resetKey, setResetKey] = useState(0)
+  
   const handleReset = useCallback(() => {
     setLeftContent('')
     setRightContent('')
+    // Clear any persisted session data for inputs/options
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('diffsuite_input_1')
+        sessionStorage.removeItem('diffsuite_input_2')
+        // Keep format/action unless explicitly changed by user
+        // sessionStorage.removeItem('diffsuite_options') // optional: keep options
+      }
+    } catch {}
+    // Attempt to reset any child view state if available
+    try {
+      // @ts-ignore - exposed by ComparisonView
+      if (typeof window !== 'undefined' && window.comparisonViewResetRef?.current) {
+        // @ts-ignore
+        window.comparisonViewResetRef.current()
+      }
+      // @ts-ignore - exposed by ValidationView
+      if (typeof window !== 'undefined' && window.validationViewResetRef?.current) {
+        // @ts-ignore
+        window.validationViewResetRef.current()
+      }
+    } catch {}
+    // Force remount of components by changing the key
+    setResetKey(prev => prev + 1)
   }, [])
 
   // Keyboard shortcuts
@@ -391,14 +418,14 @@ export default function Home() {
 
         {actionType === 'validate' ? (
           <ValidationView
-            key={formatType}
+            key={`${formatType}-${resetKey}`}
             formatType={formatType}
             content={leftContent}
             onContentChange={setLeftContent}
           />
         ) : (
           <ComparisonView
-            key={formatType}
+            key={`${formatType}-${resetKey}`}
             formatType={formatType}
             leftContent={leftContent}
             rightContent={rightContent}

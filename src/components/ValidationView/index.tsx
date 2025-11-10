@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Box, Button, Paper, Alert, AlertTitle, Accordion, AccordionSummary, AccordionDetails, Typography, Stack, Chip } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
@@ -24,6 +24,33 @@ export default function ValidationView({
 }: ValidationViewProps) {
   const [result, setResult] = useState<ValidationResult | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Clear validation result when content is cleared
+  useEffect(() => {
+    if (!content.trim()) {
+      setResult(null)
+      setLoading(false)
+    }
+  }, [content])
+
+  // Expose a reset to parent (used by page reset button)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore - exposed for parent usage
+      window.validationViewResetRef = {
+        current: () => {
+          setResult(null)
+          setLoading(false)
+        }
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.validationViewResetRef = null
+      }
+    }
+  }, [])
 
   const handleValidate = useCallback(() => {
     setLoading(true)
@@ -87,7 +114,7 @@ export default function ValidationView({
           // fullWidth={{ xs: true, sm: false }}
           className="w-full sm:w-auto min-w-[200px] smooth-transition"
           sx={{
-            background: 'linear-gradient(135deg, #6b21a8, #a855f7, #ec4899)',
+            background: '#7c3aed',
             boxShadow: '0 4px 16px rgba(236, 72, 153, 0.4)',
             fontWeight: 700,
             textTransform: 'none',
@@ -114,7 +141,7 @@ export default function ValidationView({
         </Button>
       </Box>
 
-      {result && (
+      {result && content.trim() && (
         <Box className="mt-6 smooth-transition">
           {result.valid ? (
             <Alert 
@@ -196,4 +223,3 @@ export default function ValidationView({
     </Box>
   )
 }
-
