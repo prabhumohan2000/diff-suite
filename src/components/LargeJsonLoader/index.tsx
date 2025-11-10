@@ -42,10 +42,17 @@ export default function LargeJsonLoader() {
       let loaded = 0
       // @ts-ignore
       for await (const chunk of (file as any).stream()) {
-        const buf = typeof chunk === 'string' ? chunk : new Uint8Array(chunk as ArrayBuffer)
-        const text = typeof chunk === 'string' ? chunk : decoder.decode(buf, { stream: true })
-        result += text
-        loaded += (buf as any).length ?? text.length
+        let textChunk = ''
+        if (typeof chunk === 'string') {
+          textChunk = chunk
+          loaded += textChunk.length
+        } else {
+          // Ensure we pass a proper BufferSource (Uint8Array) to TextDecoder
+          const uint8 = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk as ArrayBuffer)
+          textChunk = decoder.decode(uint8, { stream: true })
+          loaded += (uint8 as any).byteLength ?? textChunk.length
+        }
+        result += textChunk
         onProgress?.(loaded, total)
       }
       return result
