@@ -42,7 +42,7 @@ function SegmentedControlInner<V extends string>({ value, options, onChange }: S
           onClick={() => handleClick(opt.value)}
           style={{
             cursor: opt.disabled ? 'not-allowed' : 'pointer',
-            padding: '8px 12px',
+            padding: '12px 14px',
             border: 'none',
             outline: 'none',
             background: value === opt.value ? '#7c3aed' : 'transparent',

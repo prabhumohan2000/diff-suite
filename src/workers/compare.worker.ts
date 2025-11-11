@@ -167,7 +167,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
           ignoreWhitespace: !!options?.ignoreWhitespace,
           caseSensitive: options?.caseSensitive !== false,
         }
-        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing JSON…'))
+        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing…'))
         const added = d.rightLines.filter((x) => x.type === 'added').length
         const removed = d.leftLines.filter((x) => x.type === 'removed').length
         const modified = Math.min(
@@ -248,7 +248,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
           ignoreWhitespace: !!options?.ignoreWhitespace,
           caseSensitive: options?.caseSensitive !== false,
         }
-        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing XML…'))
+        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing…'))
         const added = d.rightLines.filter((x) => x.type === 'added').length
         const removed = d.leftLines.filter((x) => x.type === 'removed').length
         const modified = Math.min(
@@ -290,7 +290,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         ignoreWhitespace: !!options?.ignoreWhitespace,
         caseSensitive: options?.caseSensitive !== false,
       }
-      const d = await computeDiffProgressive(left ?? '', right ?? '', diffOptions, (p) => postProgress(id, p, 'Comparing TEXT…'))
+      const d = await computeDiffProgressive(left ?? '', right ?? '', diffOptions, (p) => postProgress(id, p, 'Comparing…'))
       const added = d.rightLines.filter((x) => x.type === 'added').length
       const removed = d.leftLines.filter((x) => x.type === 'removed').length
       const modified = Math.min(

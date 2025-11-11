@@ -6,15 +6,10 @@ export interface DiffItem {
 }
 
 export interface ComparisonOptions {
-  /** If true, object key order will be ignored when comparing */
   ignoreKeyOrder?: boolean
-  /** If true, array order will be ignored (multiset compare) */
   ignoreArrayOrder?: boolean
-  /** If false, keys and string values are compared case-insensitively */
   caseSensitive?: boolean
-  /** If true, whitespace INSIDE string values is collapsed to a single space */
   ignoreWhitespace?: boolean
-  /** NEW: If true, compare RAW JSON text for formatting (spaces/indents/newlines) BEFORE parsing */
   formattingSensitive?: boolean
 }
 

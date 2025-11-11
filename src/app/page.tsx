@@ -13,7 +13,6 @@ import {
   Typography,
 } from '@mui/material'
 import Header from '@/components/Header'
-import Footer from '@/components/Footer'
 import ModeSelector from '@/components/ModeSelector'
 import ValidationView from '@/components/ValidationView'
 import ComparisonView from '@/components/ComparisonView'

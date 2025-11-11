@@ -114,10 +114,6 @@ export default function ComparisonView({
     severity: 'info'
   })
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
   const handleMenuClose = () => {
     setAnchorEl(null);
   };
@@ -139,7 +135,7 @@ export default function ComparisonView({
         // Handle streaming progress without clearing the pending id
         if (data.type === 'progress') {
           const p = typeof data.progress === 'number' ? data.progress : undefined
-          const msg = typeof data.message === 'string' && data.message ? data.message : `Comparing ${String(formatType).toUpperCase()}…`
+          const msg = typeof data.message === 'string' && data.message ? data.message : `Comparing…`
           try {
             // @ts-ignore
             window.globalOverlay?.show?.(msg, p)
@@ -215,16 +211,10 @@ export default function ComparisonView({
       return
     }
 
-    // Fallback: run comparison on main thread (small inputs or no worker)
     // Use setTimeout so UI can render loading state
-    try {
-      // @ts-ignore
-      window.globalOverlay?.show?.(`Comparing ${String(formatType).toUpperCase()}…`, 0)
-    } catch {}
     setTimeout(() => {
       try {
         let comparisonResult: ComparisonResult
-
         if (formatType === 'json') {
           // Validate both JSON inputs first
           const leftValidation = validateJSON(leftContent)
@@ -342,7 +332,7 @@ export default function ComparisonView({
             })
           }
         } else {
-             comparisonResult = compareTextEnhanced(leftContent, rightContent, {
+            comparisonResult = compareTextEnhanced(leftContent, rightContent, {
             caseSensitive: options.caseSensitive,
             ignoreWhitespace: options.ignoreWhitespace,
           })
