@@ -164,29 +164,6 @@ export default function ValidationView({
         </Button>
       </Box>
 
-      {fileInfo && (
-        <Paper
-          elevation={0}
-          className="glass-card dark:glass-card-dark p-3 mb-4 smooth-transition"
-          sx={{
-            border: '1px solid rgba(168, 85, 247, 0.3)',
-            '&:hover': {
-              boxShadow: '0 8px 24px rgba(168, 85, 247, 0.2)',
-            },
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Uploaded File
-          </Typography>
-          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-            {fileInfo.name}
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            Size: {fileInfo.size} • Type: {fileInfo.type}
-          </Typography>
-        </Paper>
-      )}
-
       {result && content.trim() && (
         <Box ref={resultsRef} className="mt-6 smooth-transition">
           {result.valid ? (
