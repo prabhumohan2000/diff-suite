@@ -29,11 +29,12 @@ import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
 import CodeEditor from '@/components/CodeEditor'
 import DiffDisplay from '@/components/DiffDisplay'
-import FileDropZone from '@/components/FileDropZone'
+import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
-import { compareJSON } from '@/utils/comparators/jsonComparator'
+import { compareJSON, reorderObjectKeys } from '@/utils/comparators/jsonComparator'
 import { compareXML } from '@/utils/comparators/xmlComparator'
 import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffChecker'
+import { createLineDiff } from '@/utils/diffUtils/lineDiff'
 import { normalizeXMLAttributes } from '@/utils/xmlNormalizer'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
@@ -64,9 +65,18 @@ export default function ComparisonView({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const workerRef = useRef<Worker | null>(null)
   const pendingRequestIdRef = useRef<string | null>(null)
+  const resultsRef = useRef<HTMLDivElement | null>(null)
+  const [leftFileInfo, setLeftFileInfo] = useState<UploadedFileInfo | null>(null)
+  const [rightFileInfo, setRightFileInfo] = useState<UploadedFileInfo | null>(null)
 
   // Reset all states when inputs are cleared
   useEffect(() => {
+    if (!leftContent.trim()) {
+      setLeftFileInfo(null)
+    }
+    if (!rightContent.trim()) {
+      setRightFileInfo(null)
+    }
     if (!leftContent.trim() || !rightContent.trim()) {
       setResult(null)
       setShowResults(false)
@@ -78,6 +88,16 @@ export default function ComparisonView({
       pendingRequestIdRef.current = null
     }
   }, [leftContent, rightContent])
+
+  // Auto-scroll to results when they appear
+  useEffect(() => {
+    if (showResults && result && resultsRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [showResults, result])
 
   // Expose reset function to parent
   useEffect(() => {
@@ -246,10 +266,18 @@ export default function ComparisonView({
           if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
             let leftText = leftContent
             let rightText = rightContent
-            if (options.ignoreKeyOrder) {
+            if (!options.ignoreKeyOrder) {
+              // When ignoreKeyOrder is false, normalize key order for consistent line-by-line comparison
               try {
-                leftText = JSON.stringify(sortObjectKeys(JSON.parse(leftText)))
-                rightText = JSON.stringify(sortObjectKeys(JSON.parse(rightText)))
+                const leftParsed = JSON.parse(leftText)
+                const rightParsed = JSON.parse(rightText)
+                if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
+                    rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
+                  // Reorder right to match left's key order
+                  const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
+                  leftText = JSON.stringify(leftParsed, null, 2)
+                  rightText = JSON.stringify(reorderedRight, null, 2)
+                }
               } catch {}
             }
             const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
@@ -273,6 +301,24 @@ export default function ComparisonView({
               caseSensitive: options.caseSensitive,
               ignoreWhitespace: options.ignoreWhitespace,
             })
+            // Create line diff with normalized key order for display only when ignoreKeyOrder is false
+            if (!options.ignoreKeyOrder) {
+              try {
+                let leftForDiff = leftContent
+                let rightForDiff = rightContent
+                const leftParsed = JSON.parse(leftContent)
+                const rightParsed = JSON.parse(rightContent)
+                if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
+                    rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
+                  // When ignoreKeyOrder is false, reorder right to match left's key order
+                  const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
+                  leftForDiff = JSON.stringify(leftParsed, null, 2)
+                  rightForDiff = JSON.stringify(reorderedRight, null, 2)
+                  const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+                  comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
+                }
+              } catch {}
+            }
           }
         } else if (formatType === 'xml') {
           // Validate both XML inputs first
@@ -379,16 +425,25 @@ export default function ComparisonView({
   }, [onOptionsChange, options])
 
   // When user edits either textarea, hide results to avoid heavy recompute
+  // Note: We don't clear file info here - it should persist even if user edits the content
   const handleLeftChange = useCallback((content: string) => {
     setResult(null)
     setShowResults(false)
     onLeftContentChange(content)
+    // Only clear file info if content is completely empty
+    if (!content.trim()) {
+      setLeftFileInfo(null)
+    }
   }, [onLeftContentChange])
 
   const handleRightChange = useCallback((content: string) => {
     setResult(null)
     setShowResults(false)
     onRightContentChange(content)
+    // Only clear file info if content is completely empty
+    if (!content.trim()) {
+      setRightFileInfo(null)
+    }
   }, [onRightContentChange])
 
   return (
@@ -496,6 +551,7 @@ export default function ComparisonView({
               }}
               side="left"
               formatType={formatType}
+            onFileInfoChange={(info) => setLeftFileInfo(info)}
             >
               <CodeEditor
                 value={leftContent}
@@ -548,6 +604,7 @@ export default function ComparisonView({
               }}
               side="right"
               formatType={formatType}
+            onFileInfoChange={(info) => setRightFileInfo(info)}
             >
               <CodeEditor
                 value={rightContent}
@@ -576,6 +633,7 @@ export default function ComparisonView({
             textTransform: 'none',
             py: 1.5,
             px: 4,
+            mt: 1,
             borderRadius: 3,
             transition: 'all 0.3s ease',
             '&:hover': {
@@ -623,7 +681,7 @@ export default function ComparisonView({
       </Snackbar>
 
       {showResults && result && leftContent.trim() && rightContent.trim() && (
-        <Box className="mt-6 smooth-transition">
+        <Box ref={resultsRef} className="mt-6 smooth-transition">
           {result.errors ? (
             <>
               <Typography variant="h6" className="font-bold text-red-500 mb-4 text-center" sx={{marginBottom: '16px'}}>
@@ -731,6 +789,60 @@ export default function ComparisonView({
             </Alert>
           ) : (
             <>
+              {(leftFileInfo || rightFileInfo) && (
+                <Paper
+                  elevation={0}
+                  className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
+                  sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', md: 'row' },
+                    gap: 2,
+                  }}
+                >
+                  {leftFileInfo && (
+                    <Box
+                      className="flex-1"
+                      sx={{
+                        borderRadius: 2,
+                        border: '1px solid rgba(168, 85, 247, 0.2)',
+                        p: 2,
+                        backgroundColor: 'rgba(124, 58, 237, 0.04)',
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        Left File
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {leftFileInfo.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        Size: {leftFileInfo.size} • Type: {leftFileInfo.type}
+                      </Typography>
+                    </Box>
+                  )}
+                  {rightFileInfo && (
+                    <Box
+                      className="flex-1"
+                      sx={{
+                        borderRadius: 2,
+                        border: '1px solid rgba(168, 85, 247, 0.2)',
+                        p: 2,
+                        backgroundColor: 'rgba(124, 58, 237, 0.04)',
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        Right File
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {rightFileInfo.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        Size: {rightFileInfo.size} • Type: {rightFileInfo.type}
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              )}
               {result.summary && (
                 <Paper 
                   elevation={0}

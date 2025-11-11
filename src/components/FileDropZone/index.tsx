@@ -5,12 +5,19 @@ import { Box, Paper, Typography, useTheme, Snackbar, Alert, CircularProgress } f
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 import { FormatType } from '@/types'
 
+export interface UploadedFileInfo {
+  name: string
+  size: string
+  type: string
+}
+
 interface FileDropZoneProps {
   onFileDrop: (file: File, side: 'left' | 'right') => void
   side: 'left' | 'right'
   formatType: FormatType
   disabled?: boolean
   children: React.ReactNode
+  onFileInfoChange?: (info: UploadedFileInfo | null, side: 'left' | 'right') => void
 }
 
 export default function FileDropZone({
@@ -19,9 +26,10 @@ export default function FileDropZone({
   formatType,
   disabled = false,
   children,
+  onFileInfoChange,
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [fileInfo, setFileInfo] = useState<{ name: string; size: string; type: string } | null>(null)
+  const [fileInfo, setFileInfo] = useState<UploadedFileInfo | null>(null)
   const [snackbar, setSnackbar] = useState<{ 
     open: boolean; 
     message: string;
@@ -93,14 +101,17 @@ export default function FileDropZone({
         )}.`,
         severity: 'error'
       })
+      onFileInfoChange?.(null, side)
       return
     }
     if (isValidFile(file)) {
-      setFileInfo({
+      const info = {
         name: file.name,
         size: formatFileSize(file.size),
         type: file.type || 'Unknown',
-      })
+      }
+      setFileInfo(info)
+      onFileInfoChange?.(info, side)
 
       if (isLargeFile(file)) {
         setIsProcessing(true)
@@ -154,6 +165,7 @@ export default function FileDropZone({
         message: `Invalid file for ${formatType.toUpperCase()}. Expected ${typeLabel}.`,
         severity: 'error'
       })
+      onFileInfoChange?.(null, side)
     }
   }, [formatFileSize, formatType, isLargeFile, isValidFile, onFileDrop, side, MAX_FILE_SIZE])
 
@@ -162,6 +174,8 @@ export default function FileDropZone({
     const files = event.target.files
     if (files && files.length > 0) {
       processFile(files[0])
+      // Reset input value to allow selecting the same file again
+      event.target.value = ''
     }
   }, [processFile, disabled])
 

@@ -26,6 +26,65 @@ export interface ComparisonResult {
 // -----------------------------
 // Normalization helpers
 // -----------------------------
+
+/**
+ * Reorder object keys to match a reference object's key order
+ * Used when ignoreKeyOrder is false to ensure both JSONs have the same key order
+ */
+export function reorderObjectKeys(target: any, reference: any): any {
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+    return target
+  }
+  if (reference === null || typeof reference !== 'object' || Array.isArray(reference)) {
+    return target
+  }
+
+  const reordered: any = {}
+  const refKeys = Object.keys(reference)
+  const targetKeys = Object.keys(target)
+  
+  // First, add keys in reference order
+  for (const key of refKeys) {
+    if (key in target) {
+      const value = target[key]
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        const refValue = reference[key]
+        if (refValue !== null && typeof refValue === 'object' && !Array.isArray(refValue)) {
+          reordered[key] = reorderObjectKeys(value, refValue)
+        } else {
+          reordered[key] = value
+        }
+      } else if (Array.isArray(value)) {
+        const refValue = reference[key]
+        if (Array.isArray(refValue)) {
+          reordered[key] = value.map((item, idx) => {
+            if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+              const refItem = refValue[idx]
+              if (refItem !== null && typeof refItem === 'object' && !Array.isArray(refItem)) {
+                return reorderObjectKeys(item, refItem)
+              }
+            }
+            return item
+          })
+        } else {
+          reordered[key] = value
+        }
+      } else {
+        reordered[key] = value
+      }
+    }
+  }
+  
+  // Then add any extra keys from target that aren't in reference
+  for (const key of targetKeys) {
+    if (!(key in reordered)) {
+      reordered[key] = target[key]
+    }
+  }
+  
+  return reordered
+}
+
 function normalizeValue(value: any, options: ComparisonOptions): any {
   if (typeof value === 'string') {
     let normalized = value
@@ -295,8 +354,20 @@ export function compareJSON(
     const left = JSON.parse(leftJSON)
     const right = JSON.parse(rightJSON)
 
-    const normalizedLeft = normalizeObject(left, options)
-    const normalizedRight = normalizeObject(right, options)
+    // When ignoreKeyOrder is false and both are objects, reorder right to match left's key order
+    // This ensures line-by-line diff shows exact differences
+    let normalizedLeft = left
+    let normalizedRight = right
+    
+    if (!options.ignoreKeyOrder && 
+        left !== null && typeof left === 'object' && !Array.isArray(left) &&
+        right !== null && typeof right === 'object' && !Array.isArray(right)) {
+      // Reorder right to match left's key order for consistent line-by-line comparison
+      normalizedRight = reorderObjectKeys(right, left)
+    }
+
+    normalizedLeft = normalizeObject(normalizedLeft, options)
+    normalizedRight = normalizeObject(normalizedRight, options)
 
     const differences: DiffItem[] = []
     compareObjects(normalizedLeft, normalizedRight, '', options, differences)

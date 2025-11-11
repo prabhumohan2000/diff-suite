@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, startTransition } from 'react'
+import { useState, useCallback, useEffect, useRef, startTransition } from 'react'
 import { Box, Button, Paper, Alert, AlertTitle, Accordion, AccordionSummary, AccordionDetails, Typography, Stack, Chip } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import CodeEditor from '@/components/CodeEditor'
-import FileDropZone from '@/components/FileDropZone'
+import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
 import { FormatType, ValidationResult } from '@/types'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
@@ -24,6 +24,8 @@ export default function ValidationView({
 }: ValidationViewProps) {
   const [result, setResult] = useState<ValidationResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const resultsRef = useRef<HTMLDivElement | null>(null)
+  const [fileInfo, setFileInfo] = useState<UploadedFileInfo | null>(null)
 
   // Clear existing result on any edit so user must Validate again
   const handleContentEdit = useCallback((value: string) => {
@@ -37,8 +39,19 @@ export default function ValidationView({
     if (!content.trim()) {
       setResult(null)
       setLoading(false)
+      setFileInfo(null)
     }
   }, [content])
+
+  // Auto-scroll to results when they appear
+  useEffect(() => {
+    if (result && resultsRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [result])
 
   // Expose a reset to parent (used by page reset button)
   useEffect(() => {
@@ -102,6 +115,7 @@ export default function ValidationView({
           }}
           side="left"
           formatType={formatType}
+          onFileInfoChange={(info) => setFileInfo(info)}
         >
           <CodeEditor
             value={content}
@@ -150,8 +164,31 @@ export default function ValidationView({
         </Button>
       </Box>
 
+      {fileInfo && (
+        <Paper
+          elevation={0}
+          className="glass-card dark:glass-card-dark p-3 mb-4 smooth-transition"
+          sx={{
+            border: '1px solid rgba(168, 85, 247, 0.3)',
+            '&:hover': {
+              boxShadow: '0 8px 24px rgba(168, 85, 247, 0.2)',
+            },
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Uploaded File
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+            {fileInfo.name}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Size: {fileInfo.size} • Type: {fileInfo.type}
+          </Typography>
+        </Paper>
+      )}
+
       {result && content.trim() && (
-        <Box className="mt-6 smooth-transition">
+        <Box ref={resultsRef} className="mt-6 smooth-transition">
           {result.valid ? (
             <Alert 
               severity="success" 
