@@ -167,7 +167,7 @@ export default function FileDropZone({
       })
       onFileInfoChange?.(null, side)
     }
-  }, [formatFileSize, formatType, isLargeFile, isValidFile, onFileDrop, side, MAX_FILE_SIZE])
+  }, [formatFileSize, formatType, isLargeFile, isValidFile, onFileDrop, side, MAX_FILE_SIZE,onFileInfoChange])
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return

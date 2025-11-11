@@ -36,6 +36,7 @@ import { compareXML } from '@/utils/comparators/xmlComparator'
 import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffChecker'
 import { createLineDiff } from '@/utils/diffUtils/lineDiff'
 import { normalizeXMLAttributes } from '@/utils/xmlNormalizer'
+import { prettifyXML } from '@/utils/xmlFormatter'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
 import {  compareTextEnhanced } from '@/utils/comparators/textComparator'
@@ -350,12 +351,15 @@ export default function ComparisonView({
           if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
             let leftText = leftContent
             let rightText = rightContent
-            if (options.ignoreAttributeOrder) {
-              try {
+            try {
+              if (options.ignoreAttributeOrder) {
                 leftText = normalizeXMLAttributes(leftText)
                 rightText = normalizeXMLAttributes(rightText)
-              } catch {}
-            }
+              } else {
+                leftText = prettifyXML(leftText)
+                rightText = prettifyXML(rightText)
+              }
+            } catch {}
             const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
             const added = d.rightLines.filter((x) => x.type === 'added').length
             const removed = d.leftLines.filter((x) => x.type === 'removed').length
@@ -376,6 +380,20 @@ export default function ComparisonView({
               ignoreWhitespace: options.ignoreWhitespace,
               caseSensitive: options.caseSensitive,
             })
+            // Also provide pretty-printed line diff for inline display
+            try {
+              let leftForDiff = leftContent
+              let rightForDiff = rightContent
+              if (options.ignoreAttributeOrder) {
+                leftForDiff = normalizeXMLAttributes(leftForDiff)
+                rightForDiff = normalizeXMLAttributes(rightForDiff)
+              } else {
+                leftForDiff = prettifyXML(leftForDiff)
+                rightForDiff = prettifyXML(rightForDiff)
+              }
+              const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+              comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
+            } catch {}
           }
         } else {
             comparisonResult = compareTextEnhanced(leftContent, rightContent, {

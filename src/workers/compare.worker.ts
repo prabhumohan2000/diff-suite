@@ -5,6 +5,7 @@ import { validateXML } from '../utils/validators/xmlValidator'
 import { createLineDiff } from '../utils/diffUtils/lineDiff'
 import { computeDiff, sortObjectKeys, computeLineDiff, type DiffResult, type DiffLine } from '../utils/diffChecker'
 import { normalizeXMLAttributes } from '../utils/xmlNormalizer'
+import { prettifyXML } from '../utils/xmlFormatter'
 import { compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 type MessageIn = {
@@ -296,7 +297,20 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
       let resultWithLines: any = comparisonResult
       if (options?.includeLineDiff) {
         try {
-          const ld = createLineDiff(left, right, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
+          // Pretty-print XML for inline diff display. When ignoring attribute order,
+          // also normalize attributes for a stable comparison.
+          let leftForDiff = left
+          let rightForDiff = right
+          try {
+            if (options?.ignoreAttributeOrder) {
+              leftForDiff = normalizeXMLAttributes(left)
+              rightForDiff = normalizeXMLAttributes(right)
+            } else {
+              leftForDiff = prettifyXML(left)
+              rightForDiff = prettifyXML(right)
+            }
+          } catch { /* keep originals on failure */ }
+          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
         } catch (_) {}
       }

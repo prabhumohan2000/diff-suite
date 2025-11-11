@@ -184,12 +184,12 @@ export default function DiffDisplay({
         </Paper>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Left (Original)">
+            <VirtualPaper title="Original text">
               <VirtualList lines={leftLines} colors={colors} inlineChanges />
             </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Right (Modified)">
+            <VirtualPaper title="Changed text">
               <VirtualList lines={rightLines} colors={colors} inlineChanges />
             </VirtualPaper>
           </Grid>

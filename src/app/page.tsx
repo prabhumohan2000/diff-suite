@@ -22,6 +22,10 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import DownloadIcon from '@mui/icons-material/Download'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
+import { validateJSON } from '@/utils/validators/jsonValidator'
+import { validateXML } from '@/utils/validators/xmlValidator'
+import { prettifyXML } from '@/utils/xmlFormatter'
 import SettingsIcon from '@mui/icons-material/Settings'
 
 const STORAGE_KEY = 'diff-suite-state'
@@ -317,6 +321,33 @@ export default function Home() {
     []
   )
 
+  const handlePrettify = useCallback((side: 'left' | 'right' | 'single') => {
+    const target = side === 'right' ? rightContent : leftContent
+    try {
+      if (formatType === 'json') {
+        const valid = validateJSON(target)
+        if (!valid.valid) throw new Error('Cannot format invalid JSON')
+        const formatted = JSON.stringify(JSON.parse(target), null, 2)
+        if (side === 'right') setRightContent(formatted)
+        else setLeftContent(formatted)
+        return
+      }
+      if (formatType === 'xml') {
+        const valid = validateXML(target)
+        if (!valid.valid) throw new Error('Cannot format invalid XML')
+        const formatted = prettifyXML(target)
+        if (side === 'right') setRightContent(formatted)
+        else setLeftContent(formatted)
+        return
+      }
+      // For text, do nothing
+      setSnackbar({ open: true, message: 'Formatting is available for JSON or XML only', severity: 'info' })
+    } catch (e: any) {
+      const msg = e instanceof Error ? e.message : 'Could not format content'
+      setSnackbar({ open: true, message: msg, severity: 'error' })
+    }
+  }, [formatType, leftContent, rightContent])
+
   return (
     <Box 
       className="flex flex-col min-h-screen relative z-10"
@@ -440,6 +471,14 @@ export default function Home() {
             </IconButton>
           </Tooltip>
           {actionType === 'validate' && leftContent && (
+            <>
+              {(formatType === 'json' || formatType === 'xml') && (
+                <Tooltip title={`Prettify ${formatType.toUpperCase()}`}>
+                  <IconButton size="small" onClick={() => handlePrettify('single')} aria-label="prettify">
+                    <AutoFixHighIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
             <Tooltip title="Copy content">
               <IconButton
                 size="small"
@@ -449,6 +488,7 @@ export default function Home() {
                 <ContentCopyIcon />
               </IconButton>
             </Tooltip>
+            </>
           )}
           {actionType === 'compare' && (
             <>
@@ -463,6 +503,13 @@ export default function Home() {
                   </IconButton>
                 </Tooltip>
               )}
+              {(leftContent && (formatType === 'json' || formatType === 'xml')) && (
+                <Tooltip title={`Prettify left ${formatType.toUpperCase()}`}>
+                  <IconButton size="small" onClick={() => handlePrettify('left')} aria-label="prettify left">
+                    <AutoFixHighIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
               {rightContent && (
                 <Tooltip title="Download right content">
                   <IconButton
@@ -471,6 +518,13 @@ export default function Home() {
                     aria-label="download right"
                   >
                     <DownloadIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {(rightContent && (formatType === 'json' || formatType === 'xml')) && (
+                <Tooltip title={`Prettify right ${formatType.toUpperCase()}`}>
+                  <IconButton size="small" onClick={() => handlePrettify('right')} aria-label="prettify right">
+                    <AutoFixHighIcon />
                   </IconButton>
                 </Tooltip>
               )}
