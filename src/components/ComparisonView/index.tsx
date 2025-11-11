@@ -33,9 +33,11 @@ import FileDropZone from '@/components/FileDropZone'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
 import { compareJSON } from '@/utils/comparators/jsonComparator'
 import { compareXML } from '@/utils/comparators/xmlComparator'
-import { compareTextEnhanced } from '@/utils/comparators/textComparator'
+import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffChecker'
+import { normalizeXMLAttributes } from '@/utils/xmlNormalizer'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
+import {  compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 interface ComparisonViewProps {
   formatType: FormatType
@@ -121,7 +123,7 @@ export default function ComparisonView({
   };
 
   const isLargeContent = useCallback((content: string) => {
-    return content.length > 50_000 // Consider content large if over 50KB
+    return content.length > 10_000 // Consider content large if over 50KB
   }, [])
 
   useEffect(() => {
@@ -150,8 +152,6 @@ export default function ComparisonView({
           // @ts-ignore
           window.globalOverlay?.hide?.()
         } catch {}
-        // Clear processing notification if shown
-        setSnackbar({ open: false, message: '', severity: 'info' })
       }
     } catch (err) {
       // Worker not available — fine, we'll run comparisons on main thread
@@ -186,19 +186,15 @@ export default function ComparisonView({
   const handleCompare = useCallback(() => {
     setLoading(true)
     // Show immediate feedback for large content
-    if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-      setSnackbar?.({
-        open: true,
-        message: "Processing large content, this may take a moment...",
-        severity: "info"
-      })
+    if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
+      // Show full page overlay for all formats when content is large
       try {
         // @ts-ignore
         window.globalOverlay?.show?.('Comparing…')
       } catch {}
     }
-    // Use worker for large inputs when available
-    if (workerRef.current && (isLargeContent(leftContent) || isLargeContent(rightContent))) {
+    // Prefer using worker when available to avoid blocking the UI
+    if (workerRef.current) {
       const id = `${Date.now()}-${Math.random()}`
       pendingRequestIdRef.current = id
       try {
@@ -236,20 +232,46 @@ export default function ComparisonView({
                   message: rightValidation.error?.message || 'Invalid JSON',
                   position: rightValidation.error?.position,
                   line: rightValidation.error?.line,
-                  column: rightValidation.error?.column
-                } : undefined
+                  column: rightValidation.error?.column,
+                } : undefined,
               }
             })
             setShowResults(true)
             return
           }
 
-          comparisonResult = compareJSON(leftContent, rightContent, {
-            ignoreKeyOrder: options.ignoreKeyOrder,
-            ignoreArrayOrder: options.ignoreArrayOrder,
-            caseSensitive: options.caseSensitive,
-            ignoreWhitespace: options.ignoreWhitespace,
-          })
+          // Fallback: for large JSON and no worker, avoid deep structural diff
+          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+            let leftText = leftContent
+            let rightText = rightContent
+            if (options.ignoreKeyOrder) {
+              try {
+                leftText = JSON.stringify(sortObjectKeys(JSON.parse(leftText)))
+                rightText = JSON.stringify(sortObjectKeys(JSON.parse(rightText)))
+              } catch {}
+            }
+            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+            const added = d.rightLines.filter((x) => x.type === 'added').length
+            const removed = d.leftLines.filter((x) => x.type === 'removed').length
+            const modified = Math.min(
+              d.leftLines.filter((x) => x.type === 'changed').length,
+              d.rightLines.filter((x) => x.type === 'changed').length
+            )
+            comparisonResult = {
+              identical: added === 0 && removed === 0 && modified === 0,
+              summary: { added, removed, modified },
+              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+            } as any
+          } else {
+            comparisonResult = compareJSON(leftContent, rightContent, {
+              ignoreKeyOrder: options.ignoreKeyOrder,
+              ignoreArrayOrder: options.ignoreArrayOrder,
+              caseSensitive: options.caseSensitive,
+              ignoreWhitespace: options.ignoreWhitespace,
+            })
+          }
         } else if (formatType === 'xml') {
           // Validate both XML inputs first
           const leftValidation = validateXML(leftContent)
@@ -277,16 +299,75 @@ export default function ComparisonView({
             return
           }
 
-          comparisonResult = compareXML(leftContent, rightContent, {
-            ignoreAttributeOrder: options.ignoreAttributeOrder,
-            ignoreWhitespace: options.ignoreWhitespace,
-            caseSensitive: options.caseSensitive,
-          })
+          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+            let leftText = leftContent
+            let rightText = rightContent
+            if (options.ignoreAttributeOrder) {
+              try {
+                leftText = normalizeXMLAttributes(leftText)
+                rightText = normalizeXMLAttributes(rightText)
+              } catch {}
+            }
+            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+            const added = d.rightLines.filter((x) => x.type === 'added').length
+            const removed = d.leftLines.filter((x) => x.type === 'removed').length
+            const modified = Math.min(
+              d.leftLines.filter((x) => x.type === 'changed').length,
+              d.rightLines.filter((x) => x.type === 'changed').length
+            )
+            comparisonResult = {
+              identical: added === 0 && removed === 0 && modified === 0,
+              summary: { added, removed, modified },
+              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+            } as any
+          } else {
+            comparisonResult = compareXML(leftContent, rightContent, {
+              ignoreAttributeOrder: options.ignoreAttributeOrder,
+              ignoreWhitespace: options.ignoreWhitespace,
+              caseSensitive: options.caseSensitive,
+            })
+          }
         } else {
-          comparisonResult = compareTextEnhanced(leftContent, rightContent, {
-            caseSensitive: options.caseSensitive,
-            ignoreWhitespace: options.ignoreWhitespace,
-          })
+          // text compare path
+          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+            const d = computeDiff(leftContent, rightContent, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+            const added = d.rightLines.filter((x) => x.type === 'added').length
+            const removed = d.leftLines.filter((x) => x.type === 'removed').length
+            const modified = Math.min(
+              d.leftLines.filter((x) => x.type === 'changed').length,
+              d.rightLines.filter((x) => x.type === 'changed').length
+            )
+            const leftLines = d.leftLines.map((l, idx) => {
+              const base: any = { lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content }
+              if (l.type === 'changed' && d.rightLines[idx] && d.rightLines[idx].type === 'changed') {
+                const parts = computeLineDiff(l.content ?? '', d.rightLines[idx].content ?? '').parts
+                base.changes = parts.map((p: any) => p.removed ? { type: 'removed', value: p.value } : p.added ? { type: 'added', value: '' } : { type: 'unchanged', value: p.value })
+              }
+              return base
+            })
+            const rightLines = d.rightLines.map((r, idx) => {
+              const base: any = { lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content }
+              if (r.type === 'changed' && d.leftLines[idx] && d.leftLines[idx].type === 'changed') {
+                const parts = computeLineDiff(d.leftLines[idx].content ?? '', r.content ?? '').parts
+                base.changes = parts.map((p: any) => p.added ? { type: 'added', value: p.value } : p.removed ? { type: 'removed', value: '' } : { type: 'unchanged', value: p.value })
+              }
+              return base
+            })
+            comparisonResult = {
+              identical: added === 0 && removed === 0 && modified === 0,
+              summary: { added, removed, modified },
+              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+              leftLines,
+              rightLines,
+            } as any
+          } else {
+            comparisonResult = compareTextEnhanced(leftContent, rightContent, {
+              caseSensitive: options.caseSensitive,
+              ignoreWhitespace: options.ignoreWhitespace,
+            })
+          }
         }
 
         setResult(comparisonResult)
@@ -300,13 +381,8 @@ export default function ComparisonView({
         console.error('Comparison error:', error)
       } finally {
         setLoading(false)
-        // Clear the processing message if it was shown
-        if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-          setSnackbar?.({
-            open: false,
-            message: "",
-            severity: "info"
-          })
+        // Hide overlay if it was shown for large content
+        if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
           try {
             // @ts-ignore
             window.globalOverlay?.hide?.()

@@ -30,7 +30,8 @@ function renderLineWithChanges(line: any, colors: any) {
                 : change.type === 'removed'
                 ? colors.removed
                 : 'transparent',
-            textDecoration: change.type === 'removed' ? 'line-through' : 'none',
+            // Remove line-through for better readability; use simple highlight
+            textDecoration: 'none',
             padding: '0 2px',
             borderRadius: 2,
           }}
@@ -145,47 +146,46 @@ export default function DiffDisplay({
   if (formatType === 'text' && result.leftLines && result.rightLines) {
     return (
       <Box>
-        <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 1, mb: 2 }}>
+        <Paper elevation={1} sx={{ p: 1, mb: 2 }}>
           <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip label="Added" size="small" sx={{ backgroundColor: colors.added, border: `1px solid ${colors.addedBorder}`, color: colors.addedText }} />
-            <Chip label="Removed" size="small" sx={{ backgroundColor: colors.removed, border: `1px solid ${colors.removedBorder}`, color: colors.removedText }} />
-            <Chip label="Modified" size="small" sx={{ backgroundColor: colors.modified, border: `1px solid ${colors.modifiedBorder}` }} />
+            <Chip
+              label="Added"
+              size="small"
+              sx={{ 
+                backgroundColor: colors.added, 
+                border: `1px solid ${colors.addedBorder}`,
+                color: colors.addedText,
+              }}
+            />
+            <Chip
+              label="Removed"
+              size="small"
+              sx={{ 
+                backgroundColor: colors.removed, 
+                border: `1px solid ${colors.removedBorder}`,
+                color: colors.removedText,
+              }}
+            />
+            <Chip
+              label="Modified"
+              size="small"
+              sx={{ 
+                backgroundColor: colors.modified, 
+                border: `1px solid ${colors.modifiedBorder}`,
+              }}
+            />
           </Stack>
         </Paper>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 2, maxHeight: 500, overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.875rem', lineHeight: 1.5 }}>
-              {/* <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Left (Original)</Typography> */}
-              <Box>
-                {result.leftLines.map((line, idx) => (
-                  <Box key={idx} sx={{ py: 0.25 }}>
-                    <Typography component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: '36px', display: 'inline-block', userSelect: 'none' }}>
-                      {line.lineNumber}
-                    </Typography>
-                    <Typography component="span" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {renderLineWithChanges(line as any, colors)}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
+            <VirtualPaper title="">
+              <VirtualList lines={result.leftLines as any[]} colors={colors} inlineChanges={true} />
+            </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 2, maxHeight: 500, overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontSize: '0.875rem', lineHeight: 1.5 }}>
-              {/* <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Right (Modified)</Typography> */}
-              <Box>
-                {result.rightLines.map((line, idx) => (
-                  <Box key={idx} sx={{ py: 0.25 }}>
-                    <Typography component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: '36px', display: 'inline-block', userSelect: 'none' }}>
-                      {line.lineNumber}
-                    </Typography>
-                    <Typography component="span" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {renderLineWithChanges(line as any, colors)}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
+            <VirtualPaper title="">
+              <VirtualList lines={result.rightLines as any[]} colors={colors} inlineChanges={true} />
+            </VirtualPaper>
           </Grid>
         </Grid>
       </Box>
@@ -285,7 +285,7 @@ function VirtualList({
     const bg = inlineChanges ? 'transparent' : (line.type === 'added' ? colors.added : line.type === 'removed' ? colors.removed : 'transparent')
     const borderLeft = inlineChanges ? 'none' : (line.type === 'added' ? `2px solid ${colors.addedBorder}` : line.type === 'removed' ? `2px solid ${colors.removedBorder}` : 'none')
     return (
-      <Box style={style as React.CSSProperties} sx={{ px: 0.5, backgroundColor: bg, borderLeft, display: 'flex', alignItems: 'center' }}>
+      <Box style={style as React.CSSProperties} sx={{ px: 0.5, backgroundColor: bg, borderLeft, display: 'flex', alignItems: 'flex-start' }}>
         <Box component="span" sx={{ color: 'text.secondary', pr: 1, width: 36, textAlign: 'right', userSelect: 'none' }}>
           {line.lineNumber}
         </Box>
@@ -307,19 +307,23 @@ function VirtualList({
           )
         }
         // Variable-size list for wrapped text lines
-        const gutter = 36 + 8
-        const avail = Math.max(40, width - gutter)
+        const gutter = 44
+        const avail = Math.max(80, width - gutter)
         // Match editor metrics (monospace, 0.875rem ~ 14px). Typical char width ≈ 8px
-        const charWidth = 8
-        const lineHeight = 22 // slightly larger to respect 1.5 line-height and padding
+        const approxCharWidth = 7
+        const lineHeight = 20 // slightly larger to respect 1.5 line-height and padding
         const getItemSize = (index: number) => {
           const l: any = lines[index]
-          const len = l.changes ? l.changes.reduce((a: number, c: any) => a + String(c.value || '').length, 0) : String(l.content || '').length
-          const rows = Math.max(1, Math.ceil((len * charWidth) / avail))
-          return rows * lineHeight + 6
+          const len = l?.changes
+            ? l.changes.reduce((a: number, c: any) => a + String(c?.value ?? '').length, 0)
+            : String(l?.content ?? '').length
+          const charsPerRow = Math.max(10, Math.floor(avail / approxCharWidth))
+          const rows = Math.max(1, Math.ceil(len / charsPerRow))
+          // Clamp extremely long wrapped rows to avoid huge whitespace
+          return Math.min(rows, 20) * lineHeight + 6
         }
         return (
-          <VList height={height} width={width} itemCount={lines.length} itemSize={getItemSize as any} overscanCount={4}>
+          <VList height={height} width={width} itemCount={lines.length} itemSize={getItemSize as any} overscanCount={4} estimatedItemSize={lineHeight + 6}>
             {Row}
           </VList>
         )
@@ -327,4 +331,5 @@ function VirtualList({
     </AutoSizer>
   )
 }
+
 
