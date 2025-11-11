@@ -20,25 +20,25 @@ function renderLineWithChanges(line: any, colors: any) {
 
   return (
     <span>
-      {line.changes.map((change: any, idx: number) => (
-        <span
-          key={idx}
-          style={{
-            backgroundColor:
-              change.type === 'added'
-                ? colors.added
-                : change.type === 'removed'
-                ? colors.removed
+      {line.changes.map((change: any, idx: number) => {
+        const isChanged = change.type === 'added' || change.type === 'removed'
+        return (
+          <span
+            key={idx}
+            style={{
+              backgroundColor: isChanged
+                ? (change.type === 'added' ? colors.added : colors.removed)
                 : 'transparent',
-            // Remove line-through for better readability; use simple highlight
-            textDecoration: 'none',
-            padding: '0 2px',
-            borderRadius: 2,
-          }}
-        >
-          {change.value}
-        </span>
-      ))}
+              // No extra padding to avoid artificial spacing between characters
+              padding: isChanged ? 0 : undefined,
+              borderRadius: isChanged ? 2 : undefined,
+              textDecoration: 'none',
+            }}
+          >
+            {change.value}
+          </span>
+        )
+      })}
     </span>
   )
 }

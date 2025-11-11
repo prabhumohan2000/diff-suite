@@ -3,7 +3,7 @@ import { compareXML } from '../utils/comparators/xmlComparator'
 import { validateJSON } from '../utils/validators/jsonValidator'
 import { validateXML } from '../utils/validators/xmlValidator'
 import { createLineDiff } from '../utils/diffUtils/lineDiff'
-import { computeDiff, sortObjectKeys, computeLineDiff } from '../utils/diffChecker'
+import { computeDiff, sortObjectKeys, computeLineDiff, type DiffResult, type DiffLine } from '../utils/diffChecker'
 import { normalizeXMLAttributes } from '../utils/xmlNormalizer'
 import { compareTextEnhanced } from '@/utils/comparators/textComparator'
 
@@ -21,7 +21,100 @@ type PostResult = {
   error?: string
 }
 
-self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
+type ProgressMsg = {
+  id: string
+  type: 'progress'
+  progress?: number
+  message?: string
+}
+
+function postProgress(id: string, progress?: number, message?: string) {
+  const out: ProgressMsg = { id, type: 'progress', progress, message }
+  // @ts-ignore
+  self.postMessage(out)
+}
+
+// Progressive diff for large inputs: chunk by lines and yield progress
+function computeDiffProgressive(
+  left: string,
+  right: string,
+  options: { ignoreWhitespace?: boolean; caseSensitive?: boolean },
+  onProgress: (p: number) => void
+) {
+  return new Promise<DiffResult>((resolve) => {
+    const leftLines = (left ?? '').split('\n')
+    const rightLines = (right ?? '').split('\n')
+    const total = Math.max(1, leftLines.length + rightLines.length)
+
+    const leftResult: DiffLine[] = []
+    const rightResult: DiffLine[] = []
+    let hasChanges = false
+    let li = 0
+    let ri = 0
+
+    const normalize = (s: string) => {
+      let n = s
+      if (options.ignoreWhitespace) n = n.replace(/\s+/g, ' ').trim()
+      if (options.caseSensitive === false) n = n.toLowerCase()
+      return n
+    }
+
+    const linesMatch = (l: string, r: string) => normalize(l) === normalize(r)
+    const CHUNK = 500
+    let lastReported = -1
+
+    const step = () => {
+      let processed = 0
+      while ((li < leftLines.length || ri < rightLines.length) && processed < CHUNK) {
+        const l = leftLines[li]
+        const r = rightLines[ri]
+        if (li >= leftLines.length) {
+          rightResult.push({ type: 'added', content: r, lineNumber: ri + 1 })
+          hasChanges = true
+          ri++
+        } else if (ri >= rightLines.length) {
+          leftResult.push({ type: 'removed', content: l, lineNumber: li + 1 })
+          hasChanges = true
+          li++
+        } else if (linesMatch(l, r)) {
+          leftResult.push({ type: 'unchanged', content: l, lineNumber: li + 1, correspondingLine: ri + 1 })
+          rightResult.push({ type: 'unchanged', content: r, lineNumber: ri + 1, correspondingLine: li + 1 })
+          li++; ri++
+        } else {
+          const leftNextMatch = rightLines.findIndex((line, idx) => idx > ri && linesMatch(l, line))
+          const rightNextMatch = leftLines.findIndex((line, idx) => idx > li && linesMatch(r, line))
+          if (leftNextMatch !== -1 && (rightNextMatch === -1 || leftNextMatch < rightNextMatch)) {
+            rightResult.push({ type: 'added', content: r, lineNumber: ri + 1 })
+            hasChanges = true
+            ri++
+          } else if (rightNextMatch !== -1) {
+            leftResult.push({ type: 'removed', content: l, lineNumber: li + 1 })
+            hasChanges = true
+            li++
+          } else {
+            leftResult.push({ type: 'changed', content: l, lineNumber: li + 1, correspondingLine: ri + 1 })
+            rightResult.push({ type: 'changed', content: r, lineNumber: ri + 1, correspondingLine: li + 1 })
+            hasChanges = true
+            li++; ri++
+          }
+        }
+        processed++
+        const p = Math.floor(((li + ri) / total) * 100)
+        if (p !== lastReported) { lastReported = p; onProgress(p) }
+      }
+      if (li < leftLines.length || ri < rightLines.length) {
+        setTimeout(step, 0)
+      } else {
+        onProgress(100)
+        resolve({ leftLines: leftResult, rightLines: rightResult, hasChanges })
+      }
+    }
+    onProgress(0)
+    setTimeout(step, 0)
+  })
+}
+
+self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
   const { id, left, right, formatType, options } = ev.data
 
   try {
@@ -74,7 +167,7 @@ self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
           ignoreWhitespace: !!options?.ignoreWhitespace,
           caseSensitive: options?.caseSensitive !== false,
         }
-        const d = computeDiff(leftText, rightText, diffOptions)
+        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing JSON…'))
         const added = d.rightLines.filter((x) => x.type === 'added').length
         const removed = d.leftLines.filter((x) => x.type === 'removed').length
         const modified = Math.min(
@@ -155,7 +248,7 @@ self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
           ignoreWhitespace: !!options?.ignoreWhitespace,
           caseSensitive: options?.caseSensitive !== false,
         }
-        const d = computeDiff(leftText, rightText, diffOptions)
+        const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing XML…'))
         const added = d.rightLines.filter((x) => x.type === 'added').length
         const removed = d.leftLines.filter((x) => x.type === 'removed').length
         const modified = Math.min(
@@ -197,7 +290,7 @@ self.addEventListener('message', (ev: MessageEvent<MessageIn>) => {
         ignoreWhitespace: !!options?.ignoreWhitespace,
         caseSensitive: options?.caseSensitive !== false,
       }
-      const d = computeDiff(left ?? '', right ?? '', diffOptions)
+      const d = await computeDiffProgressive(left ?? '', right ?? '', diffOptions, (p) => postProgress(id, p, 'Comparing TEXT…'))
       const added = d.rightLines.filter((x) => x.type === 'added').length
       const removed = d.leftLines.filter((x) => x.type === 'removed').length
       const modified = Math.min(

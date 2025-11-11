@@ -141,15 +141,16 @@ export default function Home() {
   }, [])
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({ open: false, message: '', severity: 'error' })
-  const [overlay, setOverlay] = useState<{ open: boolean; message?: string }>({ open: false })
+  const [overlay, setOverlay] = useState<{ open: boolean; message?: string; progress?: number }>({ open: false })
 
   // Expose a simple global overlay controller for other components (ComparisonView/FileDropZone)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // @ts-ignore
       window.globalOverlay = {
-        show: (message?: string) => setOverlay({ open: true, message: message || 'Processing…' }),
-        hide: () => setOverlay({ open: false }),
+        show: (message?: string, progress?: number) => setOverlay({ open: true, message: message || 'Processing…', progress }),
+        update: (message?: string, progress?: number) => setOverlay((prev) => ({ open: true, message: message ?? prev.message, progress: typeof progress === 'number' ? progress : prev.progress })),
+        hide: () => setOverlay({ open: false, message: undefined, progress: undefined }),
       }
     }
     return () => {
@@ -529,11 +530,19 @@ export default function Home() {
             justifyContent: 'center',
           }}
         >
-          <Box className="flex flex-col items-center gap-2">
+          <Box className="flex flex-col items-center gap-2" sx={{ minWidth: 260 }}>
             <CircularProgress size={40} sx={{ color: 'white' }} />
             <Typography variant="body2" sx={{ color: 'white', fontWeight: 600 }}>
-              {overlay.message || 'Processing…'}
+              {overlay.message || 'Processing…'}{typeof overlay.progress === 'number' ? ` ${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%` : ''}
             </Typography>
+            {typeof overlay.progress === 'number' && (
+              <Box sx={{ width: '100%', mt: 1 }}>
+                <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, Math.round(overlay.progress)))}
+                  style={{ height: 6, width: '100%', background: 'rgba(255,255,255,0.25)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%`, background: '#90caf9', transition: 'width 200ms ease' }} />
+                </div>
+              </Box>
+            )}
           </Box>
         </Box>
       )}

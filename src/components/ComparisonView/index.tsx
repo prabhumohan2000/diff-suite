@@ -132,12 +132,27 @@ export default function ComparisonView({
       // worker file relative to this module
       workerRef.current = new Worker(new URL('../../workers/compare.worker.ts', import.meta.url), { type: 'module' })
       workerRef.current.onmessage = (e: MessageEvent<any>) => {
-        const { id, result, error } = e.data || {}
+        const data = e.data || {}
+        const { id } = data
         if (pendingRequestIdRef.current && id !== pendingRequestIdRef.current) return
+
+        // Handle streaming progress without clearing the pending id
+        if (data.type === 'progress') {
+          const p = typeof data.progress === 'number' ? data.progress : undefined
+          const msg = typeof data.message === 'string' && data.message ? data.message : `Comparing ${String(formatType).toUpperCase()}…`
+          try {
+            // @ts-ignore
+            window.globalOverlay?.show?.(msg, p)
+            // @ts-ignore
+            window.globalOverlay?.update?.(msg, p)
+          } catch {}
+          return
+        }
+
         pendingRequestIdRef.current = null
-        if (error) {
-          console.error('Worker error:', error)
-          setSnackbar({ open: true, message: String(error), severity: 'error' })
+        if (data.error) {
+          console.error('Worker error:', data.error)
+          setSnackbar({ open: true, message: String(data.error), severity: 'error' })
           setLoading(false)
           try {
             // @ts-ignore
@@ -145,6 +160,7 @@ export default function ComparisonView({
           } catch {}
           return
         }
+        const result = data.result
         setResult(result)
         setShowResults(true)
         setLoading(false)
@@ -154,7 +170,7 @@ export default function ComparisonView({
         } catch {}
       }
     } catch (err) {
-      // Worker not available — fine, we'll run comparisons on main thread
+      // Worker not available – fine, we'll run comparisons on main thread
       workerRef.current = null
     }
 
@@ -185,14 +201,6 @@ export default function ComparisonView({
 
   const handleCompare = useCallback(() => {
     setLoading(true)
-    // Show immediate feedback for large content
-    if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
-      // Show full page overlay for all formats when content is large
-      try {
-        // @ts-ignore
-        window.globalOverlay?.show?.('Comparing…')
-      } catch {}
-    }
     // Prefer using worker when available to avoid blocking the UI
     if (workerRef.current) {
       const id = `${Date.now()}-${Math.random()}`
@@ -209,6 +217,10 @@ export default function ComparisonView({
 
     // Fallback: run comparison on main thread (small inputs or no worker)
     // Use setTimeout so UI can render loading state
+    try {
+      // @ts-ignore
+      window.globalOverlay?.show?.(`Comparing ${String(formatType).toUpperCase()}…`, 0)
+    } catch {}
     setTimeout(() => {
       try {
         let comparisonResult: ComparisonResult
