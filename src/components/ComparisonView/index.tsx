@@ -330,44 +330,10 @@ export default function ComparisonView({
             })
           }
         } else {
-          // text compare path
-          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-            const d = computeDiff(leftContent, rightContent, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
-            const added = d.rightLines.filter((x) => x.type === 'added').length
-            const removed = d.leftLines.filter((x) => x.type === 'removed').length
-            const modified = Math.min(
-              d.leftLines.filter((x) => x.type === 'changed').length,
-              d.rightLines.filter((x) => x.type === 'changed').length
-            )
-            const leftLines = d.leftLines.map((l, idx) => {
-              const base: any = { lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content }
-              if (l.type === 'changed' && d.rightLines[idx] && d.rightLines[idx].type === 'changed') {
-                const parts = computeLineDiff(l.content ?? '', d.rightLines[idx].content ?? '').parts
-                base.changes = parts.map((p: any) => p.removed ? { type: 'removed', value: p.value } : p.added ? { type: 'added', value: '' } : { type: 'unchanged', value: p.value })
-              }
-              return base
-            })
-            const rightLines = d.rightLines.map((r, idx) => {
-              const base: any = { lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content }
-              if (r.type === 'changed' && d.leftLines[idx] && d.leftLines[idx].type === 'changed') {
-                const parts = computeLineDiff(d.leftLines[idx].content ?? '', r.content ?? '').parts
-                base.changes = parts.map((p: any) => p.added ? { type: 'added', value: p.value } : p.removed ? { type: 'removed', value: '' } : { type: 'unchanged', value: p.value })
-              }
-              return base
-            })
-            comparisonResult = {
-              identical: added === 0 && removed === 0 && modified === 0,
-              summary: { added, removed, modified },
-              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
-              leftLines,
-              rightLines,
-            } as any
-          } else {
-            comparisonResult = compareTextEnhanced(leftContent, rightContent, {
-              caseSensitive: options.caseSensitive,
-              ignoreWhitespace: options.ignoreWhitespace,
-            })
-          }
+             comparisonResult = compareTextEnhanced(leftContent, rightContent, {
+            caseSensitive: options.caseSensitive,
+            ignoreWhitespace: options.ignoreWhitespace,
+          })
         }
 
         setResult(comparisonResult)
@@ -390,7 +356,7 @@ export default function ComparisonView({
         }
       }
     }, 0)
-  }, [leftContent, rightContent, formatType, options, isLargeContent, setSnackbar])
+  }, [leftContent, rightContent, formatType, options, isLargeContent])
 
   const handleOptionChange = (key: keyof ComparisonOptions) => (
     event: React.ChangeEvent<HTMLInputElement>

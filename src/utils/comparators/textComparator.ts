@@ -1,4 +1,4 @@
-import { diffLines, diffWords } from 'diff'
+import { diffLines, diffWords, Change } from 'diff'
 
 export interface TextDiffLine {
   lineNumber: number
@@ -35,188 +35,253 @@ function normalizeText(text: string, options: ComparisonOptions): string {
   return text
 }
 
+export function compareText(
+  leftText: string,
+  rightText: string,
+  options: ComparisonOptions = {}
+): ComparisonResult {
+  // Prepare text for diffing based on options
+  const textForDiff = (text: string) => {
+    let result = text
+    if (options.ignoreWhitespace) {
+      result = normalizeText(result, options)
+    }
+    if (!options.caseSensitive) {
+      result = result.toLowerCase()
+    }
+    return result
+  }
+
+  const leftForDiff = textForDiff(leftText)
+  const rightForDiff = textForDiff(rightText)
+
+  // Perform line-by-line diff
+  const lineDiffs = diffLines(leftForDiff, rightForDiff, {
+    ignoreWhitespace: false, // We already normalized above
+    newlineIsToken: true,
+  })
+
+  const leftLines: TextDiffLine[] = []
+  const rightLines: TextDiffLine[] = []
+  let leftLineNumber = 1
+  let rightLineNumber = 1
+
+  let addedCount = 0
+  let removedCount = 0
+  let modifiedCount = 0
+
+  for (const change of lineDiffs) {
+    const lines = change.value.split('\n')
+    // Remove empty last line if it exists (from split)
+    if (lines[lines.length - 1] === '') {
+      lines.pop()
+    }
+
+    if (change.added) {
+      for (const line of lines) {
+        if (line) {
+          // Perform word-level diff for added lines to show inline changes
+          const wordDiffs = diffWords('', line)
+          const changes: TextDiffChange[] = wordDiffs.map(w => ({
+            type: w.added ? 'added' : 'unchanged',
+            value: w.value,
+          }))
+
+          rightLines.push({
+            lineNumber: rightLineNumber++,
+            type: 'added',
+            content: line,
+            changes,
+          })
+          addedCount++
+        }
+      }
+    } else if (change.removed) {
+      for (const line of lines) {
+        if (line) {
+          // Perform word-level diff for removed lines
+          const wordDiffs = diffWords(line, '')
+          const changes: TextDiffChange[] = wordDiffs.map(w => ({
+            type: w.removed ? 'removed' : 'unchanged',
+            value: w.value,
+          }))
+
+          leftLines.push({
+            lineNumber: leftLineNumber++,
+            type: 'removed',
+            content: line,
+            changes,
+          })
+          removedCount++
+        }
+      }
+    } else {
+      // Unchanged lines
+      for (const line of lines) {
+        if (line) {
+          leftLines.push({
+            lineNumber: leftLineNumber++,
+            type: 'unchanged',
+            content: line,
+          })
+          rightLines.push({
+            lineNumber: rightLineNumber++,
+            type: 'unchanged',
+            content: line,
+          })
+        }
+      }
+    }
+  }
+
+  // Handle modified lines (where both added and removed occur together)
+  // This is a simplified approach - in practice, we'd want to pair removed+added as modified
+  modifiedCount = Math.min(addedCount, removedCount)
+  addedCount -= modifiedCount
+  removedCount -= modifiedCount
+
+  return {
+    identical: lineDiffs.every(d => !d.added && !d.removed),
+    leftLines,
+    rightLines,
+    summary: {
+      added: addedCount,
+      removed: removedCount,
+      modified: modifiedCount,
+    },
+  }
+}
+
+// Enhanced version that properly detects modified lines
 export function compareTextEnhanced(
   leftText: string,
   rightText: string,
   options: ComparisonOptions = {}
 ): ComparisonResult {
-  // Split original texts into lines - preserve original content
-  const leftOriginalLines = leftText.split('\n')
-  const rightOriginalLines = rightText.split('\n')
-
-  // Prepare normalized versions for comparison
-  const prepareForComparison = (lines: string[]) => {
-    return lines.map(line => {
-      let result = line
-      if (options.ignoreWhitespace) {
-        result = normalizeText(result, options)
-      }
-      if (!options.caseSensitive) {
-        result = result.toLowerCase()
-      }
-      return result
-    })
+  // Prepare text for diffing based on options
+  const textForDiff = (text: string) => {
+    let result = text
+    if (options.ignoreWhitespace) {
+      result = normalizeText(result, options)
+    }
+    if (!options.caseSensitive) {
+      result = result.toLowerCase()
+    }
+    return result
   }
 
-  const leftNormalized = prepareForComparison(leftOriginalLines)
-  const rightNormalized = prepareForComparison(rightOriginalLines)
+  const leftForDiff = textForDiff(leftText)
+  const rightForDiff = textForDiff(rightText)
 
-  // Perform line diff on normalized content
-  const lineDiffs = diffLines(leftNormalized.join('\n'), rightNormalized.join('\n'), {
-    ignoreWhitespace: false,
-    newlineIsToken: true,
+  // Use diffLines to get the diff
+  const lineDiffs = diffLines(leftForDiff, rightForDiff, {
+    ignoreWhitespace: false, // We already normalized above
+    newlineIsToken: false,
   })
 
   const leftDiffLines: TextDiffLine[] = []
   const rightDiffLines: TextDiffLine[] = []
   
-  let leftLineIdx = 0
-  let rightLineIdx = 0
+  let leftLineNum = 1
+  let rightLineNum = 1
   let added = 0
   let removed = 0
   let modified = 0
 
-  // Process diffs while tracking original line indices
+  // Process diff to identify added, removed, and modified lines
   let i = 0
   while (i < lineDiffs.length) {
     const change = lineDiffs[i]
     const nextChange = i + 1 < lineDiffs.length ? lineDiffs[i + 1] : null
 
-    // Count lines in this change (excluding trailing empty string from split)
-    const getLineCount = (value: string) => {
-      const lines = value.split('\n')
-      return lines[lines.length - 1] === '' ? lines.length - 1 : lines.length
-    }
-
     if (change.removed && nextChange && nextChange.added) {
-      // Modification: removed lines followed by added lines
-      const removedCount = getLineCount(change.value)
-      const addedCount = getLineCount(nextChange.value)
+      // This is a modification (removed followed by added)
+      const removedLines = change.value.split('\n').filter(l => l)
+      const addedLines = nextChange.value.split('\n').filter(l => l)
       
-      const maxLines = Math.max(removedCount, addedCount)
-      
+      const maxLines = Math.max(removedLines.length, addedLines.length)
       for (let j = 0; j < maxLines; j++) {
-        const hasRemoved = j < removedCount && leftLineIdx < leftOriginalLines.length
-        const hasAdded = j < addedCount && rightLineIdx < rightOriginalLines.length
+        const removedLine = removedLines[j]
+        const addedLine = addedLines[j]
 
-        if (hasRemoved && hasAdded) {
-          // Modified line - use original content for display
-          const leftOriginal = leftOriginalLines[leftLineIdx]
-          const rightOriginal = rightOriginalLines[rightLineIdx]
-          
-          // Perform word-level diff on original text
-          const wordDiffs = diffWords(leftOriginal, rightOriginal, { 
-            ignoreCase: !options.caseSensitive,
-            ignoreWhitespace: options.ignoreWhitespace || false
-          })
-          
-          const leftChanges: TextDiffChange[] = []
-          const rightChanges: TextDiffChange[] = []
-          
-          for (const wordDiff of wordDiffs) {
-            if (wordDiff.removed) {
-              leftChanges.push({ type: 'removed', value: wordDiff.value })
-            } else if (wordDiff.added) {
-              rightChanges.push({ type: 'added', value: wordDiff.value })
-            } else {
-              leftChanges.push({ type: 'unchanged', value: wordDiff.value })
-              rightChanges.push({ type: 'unchanged', value: wordDiff.value })
-            }
-          }
+        if (removedLine && addedLine) {
+          // Modified line - show word-level diff
+          const removedForDiff = textForDiff(removedLine)
+          const addedForDiff = textForDiff(addedLine)
+          const wordDiffs = diffWords(removedForDiff, addedForDiff, { ignoreWhitespace: false })
+          const changes: TextDiffChange[] = wordDiffs.map(w => ({
+            type: w.added ? 'added' : w.removed ? 'removed' : 'unchanged',
+            value: w.value,
+          }))
 
           leftDiffLines.push({
-            lineNumber: leftLineIdx + 1,
+            lineNumber: leftLineNum++,
             type: 'removed',
-            content: leftOriginal,
-            changes: leftChanges,
+            content: removedLine,
+            changes: changes.filter(c => c.type !== 'added'),
           })
           rightDiffLines.push({
-            lineNumber: rightLineIdx + 1,
+            lineNumber: rightLineNum++,
             type: 'added',
-            content: rightOriginal,
-            changes: rightChanges,
+            content: addedLine,
+            changes: changes.filter(c => c.type !== 'removed'),
           })
-          
-          leftLineIdx++
-          rightLineIdx++
           modified++
-        } else if (hasRemoved) {
-          // Extra removed line
-          const leftOriginal = leftOriginalLines[leftLineIdx]
+        } else if (removedLine) {
           leftDiffLines.push({
-            lineNumber: leftLineIdx + 1,
+            lineNumber: leftLineNum++,
             type: 'removed',
-            content: leftOriginal,
-            changes: [{ type: 'removed', value: leftOriginal }],
+            content: removedLine,
           })
-          leftLineIdx++
           removed++
-        } else if (hasAdded) {
-          // Extra added line
-          const rightOriginal = rightOriginalLines[rightLineIdx]
+        } else if (addedLine) {
           rightDiffLines.push({
-            lineNumber: rightLineIdx + 1,
+            lineNumber: rightLineNum++,
             type: 'added',
-            content: rightOriginal,
-            changes: [{ type: 'added', value: rightOriginal }],
+            content: addedLine,
           })
-          rightLineIdx++
           added++
         }
       }
-      i += 2 // Skip the next change as we've processed both
+      i += 2 // Skip next change as we've processed it
     } else if (change.removed) {
-      // Only removed lines
-      const lineCount = getLineCount(change.value)
-      for (let j = 0; j < lineCount && leftLineIdx < leftOriginalLines.length; j++) {
-        const leftOriginal = leftOriginalLines[leftLineIdx]
+      // Removed only
+      const lines = change.value.split('\n').filter(l => l)
+      for (const line of lines) {
         leftDiffLines.push({
-          lineNumber: leftLineIdx + 1,
+          lineNumber: leftLineNum++,
           type: 'removed',
-          content: leftOriginal,
-          changes: [{ type: 'removed', value: leftOriginal }],
+          content: line,
         })
-        leftLineIdx++
         removed++
       }
       i++
     } else if (change.added) {
-      // Only added lines
-      const lineCount = getLineCount(change.value)
-      for (let j = 0; j < lineCount && rightLineIdx < rightOriginalLines.length; j++) {
-        const rightOriginal = rightOriginalLines[rightLineIdx]
+      // Added only
+      const lines = change.value.split('\n').filter(l => l)
+      for (const line of lines) {
         rightDiffLines.push({
-          lineNumber: rightLineIdx + 1,
+          lineNumber: rightLineNum++,
           type: 'added',
-          content: rightOriginal,
-          changes: [{ type: 'added', value: rightOriginal }],
+          content: line,
         })
-        rightLineIdx++
         added++
       }
       i++
     } else {
-      // Unchanged lines
-      const lineCount = getLineCount(change.value)
-      for (let j = 0; j < lineCount; j++) {
-        if (leftLineIdx < leftOriginalLines.length && rightLineIdx < rightOriginalLines.length) {
-          const leftOriginal = leftOriginalLines[leftLineIdx]
-          const rightOriginal = rightOriginalLines[rightLineIdx]
-          
-          leftDiffLines.push({
-            lineNumber: leftLineIdx + 1,
-            type: 'unchanged',
-            content: leftOriginal,
-          })
-          rightDiffLines.push({
-            lineNumber: rightLineIdx + 1,
-            type: 'unchanged',
-            content: rightOriginal,
-          })
-          
-          leftLineIdx++
-          rightLineIdx++
-        }
+      // Unchanged
+      const lines = change.value.split('\n').filter(l => l)
+      for (const line of lines) {
+        leftDiffLines.push({
+          lineNumber: leftLineNum++,
+          type: 'unchanged',
+          content: line,
+        })
+        rightDiffLines.push({
+          lineNumber: rightLineNum++,
+          type: 'unchanged',
+          content: line,
+        })
       }
       i++
     }
