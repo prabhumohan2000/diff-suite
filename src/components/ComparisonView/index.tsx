@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef, startTransition } from 'react'
 import {
   Box,
   Button,
@@ -33,9 +33,11 @@ import FileDropZone from '@/components/FileDropZone'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
 import { compareJSON } from '@/utils/comparators/jsonComparator'
 import { compareXML } from '@/utils/comparators/xmlComparator'
-import { compareTextEnhanced } from '@/utils/comparators/textComparator'
+import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffChecker'
+import { normalizeXMLAttributes } from '@/utils/xmlNormalizer'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
+import {  compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 interface ComparisonViewProps {
   formatType: FormatType
@@ -121,7 +123,7 @@ export default function ComparisonView({
   };
 
   const isLargeContent = useCallback((content: string) => {
-    return content.length > 100000 // Consider content large if over 100KB
+    return content.length > 10_000 // Consider content large if over 50KB
   }, [])
 
   useEffect(() => {
@@ -130,23 +132,45 @@ export default function ComparisonView({
       // worker file relative to this module
       workerRef.current = new Worker(new URL('../../workers/compare.worker.ts', import.meta.url), { type: 'module' })
       workerRef.current.onmessage = (e: MessageEvent<any>) => {
-        const { id, result, error } = e.data || {}
+        const data = e.data || {}
+        const { id } = data
         if (pendingRequestIdRef.current && id !== pendingRequestIdRef.current) return
-        pendingRequestIdRef.current = null
-        if (error) {
-          console.error('Worker error:', error)
-          setSnackbar({ open: true, message: String(error), severity: 'error' })
-          setLoading(false)
+
+        // Handle streaming progress without clearing the pending id
+        if (data.type === 'progress') {
+          const p = typeof data.progress === 'number' ? data.progress : undefined
+          const msg = typeof data.message === 'string' && data.message ? data.message : `Comparing ${String(formatType).toUpperCase()}…`
+          try {
+            // @ts-ignore
+            window.globalOverlay?.show?.(msg, p)
+            // @ts-ignore
+            window.globalOverlay?.update?.(msg, p)
+          } catch {}
           return
         }
+
+        pendingRequestIdRef.current = null
+        if (data.error) {
+          console.error('Worker error:', data.error)
+          setSnackbar({ open: true, message: String(data.error), severity: 'error' })
+          setLoading(false)
+          try {
+            // @ts-ignore
+            window.globalOverlay?.hide?.()
+          } catch {}
+          return
+        }
+        const result = data.result
         setResult(result)
         setShowResults(true)
         setLoading(false)
-        // Clear processing notification if shown
-        setSnackbar({ open: false, message: '', severity: 'info' })
+        try {
+          // @ts-ignore
+          window.globalOverlay?.hide?.()
+        } catch {}
       }
     } catch (err) {
-      // Worker not available — fine, we'll run comparisons on main thread
+      // Worker not available – fine, we'll run comparisons on main thread
       workerRef.current = null
     }
 
@@ -158,22 +182,31 @@ export default function ComparisonView({
     }
   }, [])
 
+  // Expose an opener so parent toolbar Settings button can anchor this menu
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore
+      window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
+        if (anchor) setAnchorEl(anchor)
+        else setAnchorEl(document.body as unknown as HTMLElement)
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewOpenSettings = undefined
+      }
+    }
+  }, [])
+
   const handleCompare = useCallback(() => {
     setLoading(true)
-    // Show immediate feedback for large content
-    if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-      setSnackbar?.({
-        open: true,
-        message: "Processing large content, this may take a moment...",
-        severity: "info"
-      })
-    }
-    // Use worker for large inputs when available
-    if (workerRef.current && (isLargeContent(leftContent) || isLargeContent(rightContent))) {
+    // Prefer using worker when available to avoid blocking the UI
+    if (workerRef.current) {
       const id = `${Date.now()}-${Math.random()}`
       pendingRequestIdRef.current = id
       try {
-        workerRef.current.postMessage({ id, left: leftContent, right: rightContent, formatType, options })
+        workerRef.current.postMessage({ id, left: leftContent, right: rightContent, formatType, options: { ...options, includeLineDiff: formatType !== 'text' } })
       } catch (err) {
         // If worker postMessage fails, fallback to main thread
         console.error('Worker postMessage failed, falling back to main-thread compare', err)
@@ -184,6 +217,10 @@ export default function ComparisonView({
 
     // Fallback: run comparison on main thread (small inputs or no worker)
     // Use setTimeout so UI can render loading state
+    try {
+      // @ts-ignore
+      window.globalOverlay?.show?.(`Comparing ${String(formatType).toUpperCase()}…`, 0)
+    } catch {}
     setTimeout(() => {
       try {
         let comparisonResult: ComparisonResult
@@ -207,20 +244,46 @@ export default function ComparisonView({
                   message: rightValidation.error?.message || 'Invalid JSON',
                   position: rightValidation.error?.position,
                   line: rightValidation.error?.line,
-                  column: rightValidation.error?.column
-                } : undefined
+                  column: rightValidation.error?.column,
+                } : undefined,
               }
             })
             setShowResults(true)
             return
           }
 
-          comparisonResult = compareJSON(leftContent, rightContent, {
-            ignoreKeyOrder: options.ignoreKeyOrder,
-            ignoreArrayOrder: options.ignoreArrayOrder,
-            caseSensitive: options.caseSensitive,
-            ignoreWhitespace: options.ignoreWhitespace,
-          })
+          // Fallback: for large JSON and no worker, avoid deep structural diff
+          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+            let leftText = leftContent
+            let rightText = rightContent
+            if (options.ignoreKeyOrder) {
+              try {
+                leftText = JSON.stringify(sortObjectKeys(JSON.parse(leftText)))
+                rightText = JSON.stringify(sortObjectKeys(JSON.parse(rightText)))
+              } catch {}
+            }
+            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+            const added = d.rightLines.filter((x) => x.type === 'added').length
+            const removed = d.leftLines.filter((x) => x.type === 'removed').length
+            const modified = Math.min(
+              d.leftLines.filter((x) => x.type === 'changed').length,
+              d.rightLines.filter((x) => x.type === 'changed').length
+            )
+            comparisonResult = {
+              identical: added === 0 && removed === 0 && modified === 0,
+              summary: { added, removed, modified },
+              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+            } as any
+          } else {
+            comparisonResult = compareJSON(leftContent, rightContent, {
+              ignoreKeyOrder: options.ignoreKeyOrder,
+              ignoreArrayOrder: options.ignoreArrayOrder,
+              caseSensitive: options.caseSensitive,
+              ignoreWhitespace: options.ignoreWhitespace,
+            })
+          }
         } else if (formatType === 'xml') {
           // Validate both XML inputs first
           const leftValidation = validateXML(leftContent)
@@ -248,13 +311,38 @@ export default function ComparisonView({
             return
           }
 
-          comparisonResult = compareXML(leftContent, rightContent, {
-            ignoreAttributeOrder: options.ignoreAttributeOrder,
-            ignoreWhitespace: options.ignoreWhitespace,
-            caseSensitive: options.caseSensitive,
-          })
+          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+            let leftText = leftContent
+            let rightText = rightContent
+            if (options.ignoreAttributeOrder) {
+              try {
+                leftText = normalizeXMLAttributes(leftText)
+                rightText = normalizeXMLAttributes(rightText)
+              } catch {}
+            }
+            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+            const added = d.rightLines.filter((x) => x.type === 'added').length
+            const removed = d.leftLines.filter((x) => x.type === 'removed').length
+            const modified = Math.min(
+              d.leftLines.filter((x) => x.type === 'changed').length,
+              d.rightLines.filter((x) => x.type === 'changed').length
+            )
+            comparisonResult = {
+              identical: added === 0 && removed === 0 && modified === 0,
+              summary: { added, removed, modified },
+              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+            } as any
+          } else {
+            comparisonResult = compareXML(leftContent, rightContent, {
+              ignoreAttributeOrder: options.ignoreAttributeOrder,
+              ignoreWhitespace: options.ignoreWhitespace,
+              caseSensitive: options.caseSensitive,
+            })
+          }
         } else {
-          comparisonResult = compareTextEnhanced(leftContent, rightContent, {
+             comparisonResult = compareTextEnhanced(leftContent, rightContent, {
             caseSensitive: options.caseSensitive,
             ignoreWhitespace: options.ignoreWhitespace,
           })
@@ -271,26 +359,47 @@ export default function ComparisonView({
         console.error('Comparison error:', error)
       } finally {
         setLoading(false)
-        // Clear the processing message if it was shown
-        if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-          setSnackbar?.({
-            open: false,
-            message: "",
-            severity: "info"
-          })
+        // Hide overlay if it was shown for large content
+        if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
+          try {
+            // @ts-ignore
+            window.globalOverlay?.hide?.()
+          } catch {}
         }
       }
     }, 0)
-  }, [leftContent, rightContent, formatType, options, isLargeContent, setSnackbar])
+  }, [leftContent, rightContent, formatType, options, isLargeContent])
 
   const handleOptionChange = (key: keyof ComparisonOptions) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    // Reset current results to require clicking Compare again
+    setResult(null)
+    setShowResults(false)
     onOptionsChange({
       ...options,
       [key]: event.target.checked,
     } as ComparisonOptions)
   }
+
+  const handleToggleCaseSensitive = useCallback(() => {
+    setResult(null)
+    setShowResults(false)
+    onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })
+  }, [onOptionsChange, options])
+
+  // When user edits either textarea, hide results to avoid heavy recompute
+  const handleLeftChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onLeftContentChange(content)
+  }, [onLeftContentChange])
+
+  const handleRightChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onRightContentChange(content)
+  }, [onRightContentChange])
 
   return (
     <Box className="w-full relative z-10">
@@ -327,10 +436,10 @@ export default function ComparisonView({
                   '& path': {
                     fill: 'url(#gradientCheckbox)',
                   },
-                  color: '#6b21a8',
+                  color: '#7c3aed',
                 }} />
               ) : (
-                <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+                <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
               )}
             </ListItemIcon>
             <ListItemText>Ignore Key Order</ListItemText>
@@ -343,25 +452,25 @@ export default function ComparisonView({
                 '& path': {
                   fill: 'url(#gradientCheckbox)',
                 },
-                color: '#6b21a8',
+                color: '#7c3aed',
               }} />
             ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
             )}
           </ListItemIcon>
           <ListItemText>Ignore Whitespace</ListItemText>
         </MenuItem>
-        <MenuItem onClick={(e) => onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })}>
+        <MenuItem onClick={handleToggleCaseSensitive}>
           <ListItemIcon sx={{ minWidth: '36px' }}>
             {options.caseSensitive ? (
               <CheckBoxIcon sx={{ 
                 '& path': {
                   fill: 'url(#gradientCheckbox)',
                 },
-                color: '#6b21a8',
+                color: '#7c3aed',
               }} />
             ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#6b21a8' }} />
+              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
             )}
           </ListItemIcon>
           <ListItemText>Case Sensitive</ListItemText>
@@ -369,9 +478,9 @@ export default function ComparisonView({
         <svg width={0} height={0}>
           <defs>
             <linearGradient id="gradientCheckbox" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6b21a8" />
-              <stop offset="50%" stopColor="#a855f7" />
-              <stop offset="100%" stopColor="#ec4899" />
+              <stop offset="0%" stopColor="#7c3aed" />
+              <stop offset="50%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#7c3aed" />
             </linearGradient>
           </defs>
         </svg>
@@ -391,7 +500,7 @@ export default function ComparisonView({
                 const reader = new FileReader()
                 reader.onload = (e) => {
                   const content = e.target?.result as string
-                  onLeftContentChange(content)
+                  handleLeftChange(content)
                 }
                 reader.readAsText(file)
               }}
@@ -400,7 +509,7 @@ export default function ComparisonView({
             >
               <CodeEditor
                 value={leftContent}
-                onChange={onLeftContentChange}
+                onChange={handleLeftChange}
                 formatType={formatType}
                 label=""
                 placeholder={`Paste first ${formatType.toUpperCase()} here...`}
@@ -443,7 +552,7 @@ export default function ComparisonView({
                 const reader = new FileReader()
                 reader.onload = (e) => {
                   const content = e.target?.result as string
-                  onRightContentChange(content)
+                  handleRightChange(content)
                 }
                 reader.readAsText(file)
               }}
@@ -452,7 +561,7 @@ export default function ComparisonView({
             >
               <CodeEditor
                 value={rightContent}
-                onChange={onRightContentChange}
+                onChange={handleRightChange}
                 formatType={formatType}
                 label=""
                 placeholder={`Paste second ${formatType.toUpperCase()} here...`}
@@ -466,7 +575,7 @@ export default function ComparisonView({
         <Button
           variant="contained"
           size="large"
-          onClick={handleCompare}
+          onClick={() => startTransition(() => handleCompare())}
           disabled={loading || !leftContent.trim() || !rightContent.trim()}
           className="w-full sm:w-auto min-w-[200px] smooth-transition"
           startIcon={loading ? null : <CompareArrowsIcon />}
@@ -493,6 +602,8 @@ export default function ComparisonView({
               boxShadow: 'none',
             },
           }}
+          disableRipple
+          disableElevation
         >
           {loading ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -503,31 +614,13 @@ export default function ComparisonView({
             'Compare'
           )}
         </Button>
-        <IconButton 
-          onClick={handleMenuClick}
-          size="large"
-          className="smooth-transition"
-          sx={{
-            background: '#7c3aed',
-            color: 'white',
-            '&:hover': {
-              background: '#8b5cf6',
-              transform: 'translateY(-2px)',
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-            },
-          }}
-        >
-          <SettingsIcon />
-        </IconButton>
       </Box>
 
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert 
           onClose={() => setSnackbar({ ...snackbar, open: false })}

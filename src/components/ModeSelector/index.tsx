@@ -1,13 +1,8 @@
 'use client'
 
-import {
-  Box,
-  ToggleButtonGroup,
-  ToggleButton,
-  Typography,
-  Paper,
-  Stack,
-} from '@mui/material'
+import React, { memo, useCallback, startTransition } from 'react'
+import { Box, ToggleButtonGroup, ToggleButton, Typography, Paper, Stack } from '@mui/material'
+import SegmentedControl from '@/components/SegmentedControl'
 import { FormatType, ActionType } from '@/types'
 
 interface ModeSelectorProps {
@@ -17,12 +12,22 @@ interface ModeSelectorProps {
   onActionChange: (action: ActionType) => void
 }
 
-export default function ModeSelector({
+function ModeSelector({
   formatType,
   actionType,
   onFormatChange,
   onActionChange,
 }: ModeSelectorProps) {
+  const handleFormat = useCallback((_: unknown, value: FormatType | null) => {
+    if (!value || value === formatType) return
+    startTransition(() => onFormatChange(value))
+  }, [onFormatChange, formatType])
+
+  const handleAction = useCallback((_: unknown, value: ActionType | null) => {
+    if (!value || value === actionType) return
+    startTransition(() => onActionChange(value))
+  }, [onActionChange, actionType])
+
   return (
     <Paper
       elevation={0}
@@ -42,58 +47,15 @@ export default function ModeSelector({
           >
             Format Type
           </Typography>
-          <ToggleButtonGroup
+          <SegmentedControl
             value={formatType}
-            exclusive
-            onChange={(_, value) => value && onFormatChange(value)}
-            aria-label="format type"
-            fullWidth
-            size="small"
-            className="w-full"
-            sx={{
-              '& .MuiToggleButton-root': {
-                flex: 1,
-                py: 1,
-                px: 2,
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                textTransform: 'none',
-                border: '1px solid rgba(124, 58, 237, 0.2)',
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                color: '#6b7280',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  backgroundColor: 'rgba(124, 58, 237, 0.1)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 4px 12px rgba(124, 58, 237, 0.2)',
-                },
-                '&.Mui-selected': {
-                  background: '#7c3aed',
-                  color: 'white',
-                  borderColor: 'transparent',
-                  boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-                  '&:hover': {
-                    background: '#8b5cf6',
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)',
-                  },
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                },
-              },
-            }}
-          >
-            <ToggleButton value="json" aria-label="json" className="flex-1">
-              JSON
-            </ToggleButton>
-            <ToggleButton value="xml" aria-label="xml" className="flex-1">
-              XML
-            </ToggleButton>
-            <ToggleButton value="text" aria-label="text" className="flex-1">
-              Text
-            </ToggleButton>
-          </ToggleButtonGroup>
+            onChange={(v: any) => handleFormat(null, v)}
+            options={[
+              { value: 'json', label: 'JSON' },
+              { value: 'xml', label: 'XML' },
+              { value: 'text', label: 'Text' },
+            ]}
+          />
         </Box>
 
       <Box className="w-full sm:flex-1 min-w-0 sm:min-w-[200px] mt-0 sm:mt-0">
@@ -104,65 +66,18 @@ export default function ModeSelector({
           >
             Action Type
           </Typography>
-          <ToggleButtonGroup
+          <SegmentedControl
             value={actionType}
-            exclusive
-            onChange={(_, value) => value && onActionChange(value)}
-            aria-label="action type"
-            fullWidth
-            size="small"
-            className="w-full"
-            sx={{
-              '& .MuiToggleButton-root': {
-                flex: 1,
-                py: 1,
-                px: 2,
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                textTransform: 'none',
-                border: '1px solid rgba(124, 58, 237, 0.2)',
-                backgroundColor: 'rgba(255, 255, 255, 0.96)',
-                color: '#232325ff',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  backgroundColor: 'rgba(124, 58, 237, 0.1)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 4px 12px rgba(124, 58, 237, 0.2)',
-                },
-                '&.Mui-selected': {
-                  background: '#7c3aed',
-                  color: 'white',
-                  borderColor: 'transparent',
-                  boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-                  '&:hover': {
-                    background: '#8b5cf6',
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)',
-                  },
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                },
-                '&.Mui-disabled': {
-                  opacity: 0.5,
-                },
-              },
-            }}
-          >
-            <ToggleButton
-              value="validate"
-              aria-label="validate"
-              className="flex-1"
-              disabled={formatType === 'text'}
-            >
-              Validate
-            </ToggleButton>
-            <ToggleButton value="compare" aria-label="compare" className="flex-1">
-              Compare
-            </ToggleButton>
-          </ToggleButtonGroup>
+            onChange={(v: any) => handleAction(null, v)}
+            options={[
+              { value: 'validate', label: 'Validate', disabled: formatType === 'text' },
+              { value: 'compare', label: 'Compare' },
+            ]}
+          />
         </Box>
       </Stack>
     </Paper>
   )
 }
+
+export default memo(ModeSelector)

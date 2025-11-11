@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, startTransition } from 'react'
 import { Box, Button, Paper, Alert, AlertTitle, Accordion, AccordionSummary, AccordionDetails, Typography, Stack, Chip } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
@@ -24,6 +24,13 @@ export default function ValidationView({
 }: ValidationViewProps) {
   const [result, setResult] = useState<ValidationResult | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Clear existing result on any edit so user must Validate again
+  const handleContentEdit = useCallback((value: string) => {
+    setResult(null)
+    setLoading(false)
+    onContentChange(value)
+  }, [onContentChange])
 
   // Clear validation result when content is cleared
   useEffect(() => {
@@ -89,7 +96,7 @@ export default function ValidationView({
             const reader = new FileReader()
             reader.onload = (e) => {
               const fileContent = e.target?.result as string
-              onContentChange(fileContent)
+              handleContentEdit(fileContent)
             }
             reader.readAsText(file)
           }}
@@ -98,7 +105,7 @@ export default function ValidationView({
         >
           <CodeEditor
             value={content}
-            onChange={onContentChange}
+            onChange={handleContentEdit}
             formatType={formatType}
             label={formatType.toUpperCase()}
             placeholder={`Paste your ${formatType.toUpperCase()} here...`}
@@ -109,7 +116,7 @@ export default function ValidationView({
       <Box className="mt-4 flex gap-4 flex-wrap">
         <Button
           variant="contained"
-          onClick={handleValidate}
+          onClick={() => startTransition(() => handleValidate())}
           disabled={loading || !content.trim()}
           // fullWidth={{ xs: true, sm: false }}
           className="w-full sm:w-auto min-w-[200px] smooth-transition"
@@ -136,6 +143,8 @@ export default function ValidationView({
               boxShadow: 'none',
             },
           }}
+          disableRipple
+          disableElevation
         >
           {loading ? 'Validating...' : 'Validate'}
         </Button>

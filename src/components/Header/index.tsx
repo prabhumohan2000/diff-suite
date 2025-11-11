@@ -32,7 +32,7 @@ export default function Header({ enableStorage = true, onStorageToggle }: Header
     // Keep header visible while still adjusting elevation/visuals on scroll
     <Slide appear={false} direction="down" in={true}>
       <AppBar
-        position="sticky"
+        position="fixed"
         elevation={trigger ? 8 : 4}
         sx={{
           background: '#7c3aed',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, startTransition } from 'react'
 import {
   Container,
   Box,
@@ -9,6 +9,8 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  CircularProgress,
+  Typography,
 } from '@mui/material'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -21,6 +23,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import DownloadIcon from '@mui/icons-material/Download'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import SettingsIcon from '@mui/icons-material/Settings'
 
 const STORAGE_KEY = 'diff-suite-state'
 
@@ -138,6 +141,25 @@ export default function Home() {
   }, [])
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({ open: false, message: '', severity: 'error' })
+  const [overlay, setOverlay] = useState<{ open: boolean; message?: string; progress?: number }>({ open: false })
+
+  // Expose a simple global overlay controller for other components (ComparisonView/FileDropZone)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore
+      window.globalOverlay = {
+        show: (message?: string, progress?: number) => setOverlay({ open: true, message: message || 'Processing…', progress }),
+        update: (message?: string, progress?: number) => setOverlay((prev) => ({ open: true, message: message ?? prev.message, progress: typeof progress === 'number' ? progress : prev.progress })),
+        hide: () => setOverlay({ open: false, message: undefined, progress: undefined }),
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.globalOverlay = undefined
+      }
+    }
+  }, [])
 
   const handleFileUpload = useCallback(
     (side: 'left' | 'right', event: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,10 +207,24 @@ export default function Home() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
-        if (side === 'left') setLeftContent(content);
-        else setRightContent(content);
+        startTransition(() => {
+          if (side === 'left') setLeftContent(content);
+          else setRightContent(content);
+        })
+        // After upload, require user to Compare/Validate again
+        try {
+          if (typeof window !== 'undefined') {
+            // @ts-ignore
+            window.comparisonViewResetRef?.current?.()
+            // @ts-ignore
+            window.validationViewResetRef?.current?.()
+          }
+        } catch {}
+        setOverlay({ open: false })
         event.target.value = ''; // ensure reset happens after read
       };
+      const LARGE_FILE = 500 * 1024
+      if (file.size >= LARGE_FILE) setOverlay({ open: true, message: 'Reading file…' })
       reader.readAsText(file);
     },
     [formatType, setSnackbar, setLeftContent, setRightContent]
@@ -247,6 +283,15 @@ export default function Home() {
     const temp = leftContent
     setLeftContent(rightContent)
     setRightContent(temp)
+    // Clear any existing comparison/validation results; user must Compare again
+    try {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewResetRef?.current?.()
+        // @ts-ignore
+        window.validationViewResetRef?.current?.()
+      }
+    } catch {}
   }, [leftContent, rightContent])
 
   const handleCopy = useCallback(async (text: string) => {
@@ -279,6 +324,8 @@ export default function Home() {
       sx={{
         backgroundColor: 'background.default',
         minHeight: '100vh',
+        // Offset for fixed header height (64px mobile ~ 80px desktop)
+        pt: { xs: '72px', sm: '88px' },
       }}
     >
       <Header 
@@ -308,7 +355,7 @@ export default function Home() {
           }
         }}
       />
-      <Container maxWidth="lg" className="flex-1 py-8 relative z-10">
+      <Container maxWidth={false} className="flex-1 py-8 relative z-10" sx={{ maxWidth: { xs: '100%', lg: 1400 }, mx: 'auto', px: { xs: 2, md: 4 } }}>
         <ModeSelector
           formatType={formatType}
           actionType={actionType}
@@ -371,6 +418,22 @@ export default function Home() {
                 </IconButton>
               </Tooltip>
             </>
+          )}
+          {actionType === 'compare' && (
+            <Tooltip title="Comparison Options">
+              <IconButton
+                size="small"
+                aria-label="comparison settings"
+                onClick={(e) => {
+                  try {
+                    // @ts-ignore
+                    window.comparisonViewOpenSettings?.(e.currentTarget)
+                  } catch {}
+                }}
+              >
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
           )}
           <Tooltip title="Reset">
             <IconButton size="small" onClick={handleReset} aria-label="reset">
@@ -436,19 +499,53 @@ export default function Home() {
           />
         )}
       </Container>
-      <Footer />
+      {/* <Footer /> */}
 
 
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        // Keep page-level notices at top; others moved to bottom to avoid overlap
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: { xs: '56px', sm: '72px' } }}
       >
         <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} variant="filled" sx={{ width: '100%' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>
+      {overlay.open && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2000,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Box className="flex flex-col items-center gap-2" sx={{ minWidth: 260 }}>
+            <CircularProgress size={40} sx={{ color: 'white' }} />
+            <Typography variant="body2" sx={{ color: 'white', fontWeight: 600 }}>
+              {overlay.message || 'Processing…'}{typeof overlay.progress === 'number' ? ` ${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%` : ''}
+            </Typography>
+            {typeof overlay.progress === 'number' && (
+              <Box sx={{ width: '100%', mt: 1 }}>
+                <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, Math.round(overlay.progress)))}
+                  style={{ height: 6, width: '100%', background: 'rgba(255,255,255,0.25)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%`, background: '#90caf9', transition: 'width 200ms ease' }} />
+                </div>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
     </Box>
   )
 }

@@ -18,8 +18,6 @@ export function createLineDiff(
   rightText: string,
   options: { ignoreWhitespace?: boolean; caseSensitive?: boolean } = {}
 ): LineDiffResult {
-  const leftLines = leftText.split('\n')
-  const rightLines = rightText.split('\n')
 
   const lineDiffs = diffLines(leftText, rightText, {
     ignoreWhitespace: options.ignoreWhitespace || false,
