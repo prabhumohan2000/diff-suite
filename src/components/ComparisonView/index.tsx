@@ -33,10 +33,10 @@ import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
 import { compareJSON, reorderObjectKeys } from '@/utils/comparators/jsonComparator'
 import { compareXML } from '@/utils/comparators/xmlComparator'
-import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffChecker'
+import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffUtils/diffChecker'
 import { createLineDiff } from '@/utils/diffUtils/lineDiff'
-import { normalizeXMLAttributes } from '@/utils/xmlNormalizer'
-import { prettifyXML } from '@/utils/xmlFormatter'
+import { normalizeXMLAttributes } from '@/utils/diffUtils/xmlNormalizer'
+import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
 import {  compareTextEnhanced } from '@/utils/comparators/textComparator'
@@ -143,17 +143,18 @@ export default function ComparisonView({
     return content.length > 10_000 // Consider content large if over 50KB
   }, [])
 
-  useEffect(() => {
-    // Try to create the worker; if it fails, we'll fallback to main-thread compare
+  // Centralized worker initialization to avoid duplicate logic
+  const initWorker = useCallback(() => {
+    if (workerRef.current) return true
     try {
-      // worker file relative to this module
-      workerRef.current = new Worker(new URL('../../workers/compare.worker.ts', import.meta.url), { type: 'module' })
-      workerRef.current.onmessage = (e: MessageEvent<any>) => {
+      const worker = new Worker(new URL('../../workers/compare.worker.ts', import.meta.url), { type: 'module' })
+      workerRef.current = worker
+      worker.onmessage = (e: MessageEvent<any>) => {
         const data = e.data || {}
         const { id } = data
+
         if (pendingRequestIdRef.current && id !== pendingRequestIdRef.current) return
 
-        // Handle streaming progress without clearing the pending id
         if (data.type === 'progress') {
           const p = typeof data.progress === 'number' ? data.progress : undefined
           const msg = typeof data.message === 'string' && data.message ? data.message : `Comparing…`
@@ -186,18 +187,24 @@ export default function ComparisonView({
           window.globalOverlay?.hide?.()
         } catch {}
       }
+      return true
     } catch (err) {
-      // Worker not available – fine, we'll run comparisons on main thread
+      console.error('Failed to initialize comparison worker:', err)
       workerRef.current = null
+      return false
     }
+  }, [])
 
+  useEffect(() => {
+    // Try to create the worker on mount; if it fails, we'll fallback to main-thread compare
+    initWorker()
     return () => {
       if (workerRef.current) {
         workerRef.current.terminate()
         workerRef.current = null
       }
     }
-  }, [])
+  }, [initWorker])
 
   // Expose an opener so parent toolbar Settings button can anchor this menu
   useEffect(() => {
@@ -219,6 +226,12 @@ export default function ComparisonView({
   const handleCompare = useCallback(() => {
     setLoading(true)
     // Prefer using worker when available to avoid blocking the UI
+    if (!workerRef.current) {
+      const ok = initWorker()
+      if (!ok) {
+        console.warn('Worker unavailable; will run compare on main thread')
+      }
+    }
     if (workerRef.current) {
       const id = `${Date.now()}-${Math.random()}`
       pendingRequestIdRef.current = id
@@ -232,197 +245,197 @@ export default function ComparisonView({
       return
     }
 
-    // Use setTimeout so UI can render loading state
-    setTimeout(() => {
-      try {
-        let comparisonResult: ComparisonResult
-        if (formatType === 'json') {
-          // Validate both JSON inputs first
-          const leftValidation = validateJSON(leftContent)
-          const rightValidation = validateJSON(rightContent)
+    // // Use setTimeout so UI can render loading state
+    // setTimeout(() => {
+    //   try {
+    //     let comparisonResult: ComparisonResult
+    //     if (formatType === 'json') {
+    //       // Validate both JSON inputs first
+    //       const leftValidation = validateJSON(leftContent)
+    //       const rightValidation = validateJSON(rightContent)
 
-          if (!leftValidation.valid || !rightValidation.valid) {
-            setResult({
-              identical: false,
-              errors: {
-                left: !leftValidation.valid ? {
-                  message: leftValidation.error?.message || 'Invalid JSON',
-                  position: leftValidation.error?.position,
-                  line: leftValidation.error?.line,
-                  column: leftValidation.error?.column
-                } : undefined,
-                right: !rightValidation.valid ? {
-                  message: rightValidation.error?.message || 'Invalid JSON',
-                  position: rightValidation.error?.position,
-                  line: rightValidation.error?.line,
-                  column: rightValidation.error?.column,
-                } : undefined,
-              }
-            })
-            setShowResults(true)
-            return
-          }
+    //       if (!leftValidation.valid || !rightValidation.valid) {
+    //         setResult({
+    //           identical: false,
+    //           errors: {
+    //             left: !leftValidation.valid ? {
+    //               message: leftValidation.error?.message || 'Invalid JSON',
+    //               position: leftValidation.error?.position,
+    //               line: leftValidation.error?.line,
+    //               column: leftValidation.error?.column
+    //             } : undefined,
+    //             right: !rightValidation.valid ? {
+    //               message: rightValidation.error?.message || 'Invalid JSON',
+    //               position: rightValidation.error?.position,
+    //               line: rightValidation.error?.line,
+    //               column: rightValidation.error?.column,
+    //             } : undefined,
+    //           }
+    //         })
+    //         setShowResults(true)
+    //         return
+    //       }
 
-          // Fallback: for large JSON and no worker, avoid deep structural diff
-          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-            let leftText = leftContent
-            let rightText = rightContent
-            if (!options.ignoreKeyOrder) {
-              // When ignoreKeyOrder is false, normalize key order for consistent line-by-line comparison
-              try {
-                const leftParsed = JSON.parse(leftText)
-                const rightParsed = JSON.parse(rightText)
-                if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
-                    rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
-                  // Reorder right to match left's key order
-                  const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
-                  leftText = JSON.stringify(leftParsed, null, 2)
-                  rightText = JSON.stringify(reorderedRight, null, 2)
-                }
-              } catch {}
-            }
-            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
-            const added = d.rightLines.filter((x) => x.type === 'added').length
-            const removed = d.leftLines.filter((x) => x.type === 'removed').length
-            const modified = Math.min(
-              d.leftLines.filter((x) => x.type === 'changed').length,
-              d.rightLines.filter((x) => x.type === 'changed').length
-            )
-            comparisonResult = {
-              identical: added === 0 && removed === 0 && modified === 0,
-              summary: { added, removed, modified },
-              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
-              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
-              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
-            } as any
-          } else {
-            comparisonResult = compareJSON(leftContent, rightContent, {
-              ignoreKeyOrder: options.ignoreKeyOrder,
-              ignoreArrayOrder: options.ignoreArrayOrder,
-              caseSensitive: options.caseSensitive,
-              ignoreWhitespace: options.ignoreWhitespace,
-            })
-            // Create line diff with normalized key order for display only when ignoreKeyOrder is false
-            if (!options.ignoreKeyOrder) {
-              try {
-                let leftForDiff = leftContent
-                let rightForDiff = rightContent
-                const leftParsed = JSON.parse(leftContent)
-                const rightParsed = JSON.parse(rightContent)
-                if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
-                    rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
-                  // When ignoreKeyOrder is false, reorder right to match left's key order
-                  const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
-                  leftForDiff = JSON.stringify(leftParsed, null, 2)
-                  rightForDiff = JSON.stringify(reorderedRight, null, 2)
-                  const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
-                  comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
-                }
-              } catch {}
-            }
-          }
-        } else if (formatType === 'xml') {
-          // Validate both XML inputs first
-          const leftValidation = validateXML(leftContent)
-          const rightValidation = validateXML(rightContent)
+    //       // Fallback: for large JSON and no worker, avoid deep structural diff
+    //       if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+    //         let leftText = leftContent
+    //         let rightText = rightContent
+    //         if (!options.ignoreKeyOrder) {
+    //           // When ignoreKeyOrder is false, normalize key order for consistent line-by-line comparison
+    //           try {
+    //             const leftParsed = JSON.parse(leftText)
+    //             const rightParsed = JSON.parse(rightText)
+    //             if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
+    //                 rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
+    //               // Reorder right to match left's key order
+    //               const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
+    //               leftText = JSON.stringify(leftParsed, null, 2)
+    //               rightText = JSON.stringify(reorderedRight, null, 2)
+    //             }
+    //           } catch {}
+    //         }
+    //         const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+    //         const added = d.rightLines.filter((x) => x.type === 'added').length
+    //         const removed = d.leftLines.filter((x) => x.type === 'removed').length
+    //         const modified = Math.min(
+    //           d.leftLines.filter((x) => x.type === 'changed').length,
+    //           d.rightLines.filter((x) => x.type === 'changed').length
+    //         )
+    //         comparisonResult = {
+    //           identical: added === 0 && removed === 0 && modified === 0,
+    //           summary: { added, removed, modified },
+    //           differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+    //           leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+    //           rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+    //         } as any
+    //       } else {
+    //         comparisonResult = compareJSON(leftContent, rightContent, {
+    //           ignoreKeyOrder: options.ignoreKeyOrder,
+    //           ignoreArrayOrder: options.ignoreArrayOrder,
+    //           caseSensitive: options.caseSensitive,
+    //           ignoreWhitespace: options.ignoreWhitespace,
+    //         })
+    //         // Create line diff with normalized key order for display only when ignoreKeyOrder is false
+    //         if (!options.ignoreKeyOrder) {
+    //           try {
+    //             let leftForDiff = leftContent
+    //             let rightForDiff = rightContent
+    //             const leftParsed = JSON.parse(leftContent)
+    //             const rightParsed = JSON.parse(rightContent)
+    //             if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
+    //                 rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
+    //               // When ignoreKeyOrder is false, reorder right to match left's key order
+    //               const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
+    //               leftForDiff = JSON.stringify(leftParsed, null, 2)
+    //               rightForDiff = JSON.stringify(reorderedRight, null, 2)
+    //               const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+    //               comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
+    //             }
+    //           } catch {}
+    //         }
+    //       }
+    //     } else if (formatType === 'xml') {
+    //       // Validate both XML inputs first
+    //       const leftValidation = validateXML(leftContent)
+    //       const rightValidation = validateXML(rightContent)
 
-          if (!leftValidation.valid || !rightValidation.valid) {
-            setResult({
-              identical: false,
-              errors: {
-                left: !leftValidation.valid ? {
-                  message: leftValidation.error?.message || 'Invalid XML',
-                  line: leftValidation.error?.line,
-                  column: leftValidation.error?.column,
-                  code: leftValidation.error?.code
-                } : undefined,
-                right: !rightValidation.valid ? {
-                  message: rightValidation.error?.message || 'Invalid XML',
-                  line: rightValidation.error?.line,
-                  column: rightValidation.error?.column,
-                  code: rightValidation.error?.code
-                } : undefined
-              }
-            })
-            setShowResults(true)
-            return
-          }
+    //       if (!leftValidation.valid || !rightValidation.valid) {
+    //         setResult({
+    //           identical: false,
+    //           errors: {
+    //             left: !leftValidation.valid ? {
+    //               message: leftValidation.error?.message || 'Invalid XML',
+    //               line: leftValidation.error?.line,
+    //               column: leftValidation.error?.column,
+    //               code: leftValidation.error?.code
+    //             } : undefined,
+    //             right: !rightValidation.valid ? {
+    //               message: rightValidation.error?.message || 'Invalid XML',
+    //               line: rightValidation.error?.line,
+    //               column: rightValidation.error?.column,
+    //               code: rightValidation.error?.code
+    //             } : undefined
+    //           }
+    //         })
+    //         setShowResults(true)
+    //         return
+    //       }
 
-          if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
-            let leftText = leftContent
-            let rightText = rightContent
-            try {
-              if (options.ignoreAttributeOrder) {
-                leftText = normalizeXMLAttributes(leftText)
-                rightText = normalizeXMLAttributes(rightText)
-              } else {
-                leftText = prettifyXML(leftText)
-                rightText = prettifyXML(rightText)
-              }
-            } catch {}
-            const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
-            const added = d.rightLines.filter((x) => x.type === 'added').length
-            const removed = d.leftLines.filter((x) => x.type === 'removed').length
-            const modified = Math.min(
-              d.leftLines.filter((x) => x.type === 'changed').length,
-              d.rightLines.filter((x) => x.type === 'changed').length
-            )
-            comparisonResult = {
-              identical: added === 0 && removed === 0 && modified === 0,
-              summary: { added, removed, modified },
-              differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
-              leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
-              rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
-            } as any
-          } else {
-            comparisonResult = compareXML(leftContent, rightContent, {
-              ignoreAttributeOrder: options.ignoreAttributeOrder,
-              ignoreWhitespace: options.ignoreWhitespace,
-              caseSensitive: options.caseSensitive,
-            })
-            // Also provide pretty-printed line diff for inline display
-            try {
-              let leftForDiff = leftContent
-              let rightForDiff = rightContent
-              if (options.ignoreAttributeOrder) {
-                leftForDiff = normalizeXMLAttributes(leftForDiff)
-                rightForDiff = normalizeXMLAttributes(rightForDiff)
-              } else {
-                leftForDiff = prettifyXML(leftForDiff)
-                rightForDiff = prettifyXML(rightForDiff)
-              }
-              const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
-              comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
-            } catch {}
-          }
-        } else {
-            comparisonResult = compareTextEnhanced(leftContent, rightContent, {
-            caseSensitive: options.caseSensitive,
-            ignoreWhitespace: options.ignoreWhitespace,
-          })
-        }
+    //       if (isLargeContent(leftContent) || isLargeContent(rightContent)) {
+    //         let leftText = leftContent
+    //         let rightText = rightContent
+    //         try {
+    //           if (options.ignoreAttributeOrder) {
+    //             leftText = normalizeXMLAttributes(leftText)
+    //             rightText = normalizeXMLAttributes(rightText)
+    //           } else {
+    //             leftText = prettifyXML(leftText)
+    //             rightText = prettifyXML(rightText)
+    //           }
+    //         } catch {}
+    //         const d = computeDiff(leftText, rightText, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+    //         const added = d.rightLines.filter((x) => x.type === 'added').length
+    //         const removed = d.leftLines.filter((x) => x.type === 'removed').length
+    //         const modified = Math.min(
+    //           d.leftLines.filter((x) => x.type === 'changed').length,
+    //           d.rightLines.filter((x) => x.type === 'changed').length
+    //         )
+    //         comparisonResult = {
+    //           identical: added === 0 && removed === 0 && modified === 0,
+    //           summary: { added, removed, modified },
+    //           differences: added + removed + modified > 0 ? [{ type: 'modified', path: '$' }] as any : [],
+    //           leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: (l.type === 'changed' ? 'removed' : (l.type as any)), content: l.content })),
+    //           rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: (r.type === 'changed' ? 'added' : (r.type as any)), content: r.content })),
+    //         } as any
+    //       } else {
+    //         comparisonResult = compareXML(leftContent, rightContent, {
+    //           ignoreAttributeOrder: options.ignoreAttributeOrder,
+    //           ignoreWhitespace: options.ignoreWhitespace,
+    //           caseSensitive: options.caseSensitive,
+    //         })
+    //         // Also provide pretty-printed line diff for inline display
+    //         try {
+    //           let leftForDiff = leftContent
+    //           let rightForDiff = rightContent
+    //           if (options.ignoreAttributeOrder) {
+    //             leftForDiff = normalizeXMLAttributes(leftForDiff)
+    //             rightForDiff = normalizeXMLAttributes(rightForDiff)
+    //           } else {
+    //             leftForDiff = prettifyXML(leftForDiff)
+    //             rightForDiff = prettifyXML(rightForDiff)
+    //           }
+    //           const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options.ignoreWhitespace, caseSensitive: options.caseSensitive !== false })
+    //           comparisonResult = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines } as any
+    //         } catch {}
+    //       }
+    //     } else {
+    //         comparisonResult = compareTextEnhanced(leftContent, rightContent, {
+    //         caseSensitive: options.caseSensitive,
+    //         ignoreWhitespace: options.ignoreWhitespace,
+    //       })
+    //     }
 
-        setResult(comparisonResult)
-        setShowResults(true)
-      } catch (error) {
-        setResult({
-          identical: false,
-          summary: { added: 0, removed: 0, modified: 0 },
-        })
-        setShowResults(true)
-        console.error('Comparison error:', error)
-      } finally {
-        setLoading(false)
-        // Hide overlay if it was shown for large content
-        if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
-          try {
-            // @ts-ignore
-            window.globalOverlay?.hide?.()
-          } catch {}
-        }
-      }
-    }, 0)
-  }, [leftContent, rightContent, formatType, options, isLargeContent])
+    //     setResult(comparisonResult)
+    //     setShowResults(true)
+    //   } catch (error) {
+    //     setResult({
+    //       identical: false,
+    //       summary: { added: 0, removed: 0, modified: 0 },
+    //     })
+    //     setShowResults(true)
+    //     console.error('Comparison error:', error)
+    //   } finally {
+    //     setLoading(false)
+    //     // Hide overlay if it was shown for large content
+    //     if ((isLargeContent(leftContent) || isLargeContent(rightContent))) {
+    //       try {
+    //         // @ts-ignore
+    //         window.globalOverlay?.hide?.()
+    //       } catch {}
+    //     }
+    //   }
+    // }, 0)
+  }, [leftContent, rightContent, formatType, options,initWorker])
 
   const handleOptionChange = (key: keyof ComparisonOptions) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -807,60 +820,6 @@ export default function ComparisonView({
             </Alert>
           ) : (
             <>
-              {(leftFileInfo || rightFileInfo) && (
-                <Paper
-                  elevation={0}
-                  className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
-                  sx={{
-                    display: 'flex',
-                    flexDirection: { xs: 'column', md: 'row' },
-                    gap: 2,
-                  }}
-                >
-                  {leftFileInfo && (
-                    <Box
-                      className="flex-1"
-                      sx={{
-                        borderRadius: 2,
-                        border: '1px solid rgba(168, 85, 247, 0.2)',
-                        p: 2,
-                        backgroundColor: 'rgba(124, 58, 237, 0.04)',
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                        Left File
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {leftFileInfo.name}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        Size: {leftFileInfo.size} • Type: {leftFileInfo.type}
-                      </Typography>
-                    </Box>
-                  )}
-                  {rightFileInfo && (
-                    <Box
-                      className="flex-1"
-                      sx={{
-                        borderRadius: 2,
-                        border: '1px solid rgba(168, 85, 247, 0.2)',
-                        p: 2,
-                        backgroundColor: 'rgba(124, 58, 237, 0.04)',
-                      }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                        Right File
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {rightFileInfo.name}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        Size: {rightFileInfo.size} • Type: {rightFileInfo.type}
-                      </Typography>
-                    </Box>
-                  )}
-                </Paper>
-              )}
               {result.summary && (
                 <Paper 
                   elevation={0}
