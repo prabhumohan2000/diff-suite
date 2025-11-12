@@ -129,12 +129,12 @@ export default function DiffDisplay({
         </Paper>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="">
+            <VirtualPaper title="Original text">
               <VirtualList lines={lineDiff.leftLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="">
+            <VirtualPaper title="Changed text">
               <VirtualList lines={lineDiff.rightLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
@@ -144,54 +144,158 @@ export default function DiffDisplay({
   }
 
   if (formatType === 'text' && result.leftLines && result.rightLines) {
-    const leftLines = result.leftLines as Array<{ lineNumber: number; type: 'added' | 'removed' | 'unchanged'; content: string; changes?: any[] }>
-    const rightLines = result.rightLines as Array<{ lineNumber: number; type: 'added' | 'removed' | 'unchanged'; content: string; changes?: any[] }>
-
     return (
       <Box>
-        <Paper elevation={0} className="glass-card dark:glass-card-dark smooth-transition" sx={{ p: 1.5, mb: 2 }}>
+        <Paper elevation={1} sx={{ p: 1, mb: 2 }}>
           <Stack direction="row" spacing={1} flexWrap="wrap">
             <Chip
               label="Added"
               size="small"
-              sx={{
-                backgroundColor: colors.added,
+              sx={{ 
+                backgroundColor: colors.added, 
                 border: `1px solid ${colors.addedBorder}`,
                 color: colors.addedText,
-                fontWeight: 600,
               }}
             />
             <Chip
               label="Removed"
               size="small"
-              sx={{
-                backgroundColor: colors.removed,
+              sx={{ 
+                backgroundColor: colors.removed, 
                 border: `1px solid ${colors.removedBorder}`,
                 color: colors.removedText,
-                fontWeight: 600,
               }}
             />
             <Chip
               label="Modified"
               size="small"
-              sx={{
-                backgroundColor: colors.modified,
+              sx={{ 
+                backgroundColor: colors.modified, 
                 border: `1px solid ${colors.modifiedBorder}`,
-                fontWeight: 600,
               }}
             />
           </Stack>
         </Paper>
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Original text">
-              <VirtualList lines={leftLines} colors={colors} inlineChanges />
-            </VirtualPaper>
+            <Paper
+              elevation={0}
+              className="glass-card dark:glass-card-dark smooth-transition"
+              sx={{
+                p: 3,
+                maxHeight: '500px',
+                overflow: 'auto',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem',
+                '&:hover': {
+                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
+                },
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Left (Original)
+              </Typography>
+              <Box>
+                {result.leftLines.map((line, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      p: 0.5,
+                      backgroundColor:
+                        line.type === 'removed'
+                          ? colors.removed
+                          : line.type === 'unchanged'
+                          ? 'transparent'
+                          : colors.modified,
+                      borderLeft:
+                        line.type === 'removed' ? `3px solid ${colors.removedBorder}` : 'none',
+                    }}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: 'text.secondary',
+                        mr: 1,
+                        fontFamily: 'monospace',
+                        minWidth: '40px',
+                        display: 'inline-block',
+                      }}
+                    >
+                      {line.lineNumber}
+                    </Typography>
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontFamily: 'monospace',
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        {renderLineWithChanges(line, colors)}
+                      </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Paper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Changed text">
-              <VirtualList lines={rightLines} colors={colors} inlineChanges />
-            </VirtualPaper>
+            <Paper
+              elevation={0}
+              className="glass-card dark:glass-card-dark smooth-transition"
+              sx={{
+                p: 3,
+                maxHeight: '500px',
+                overflow: 'auto',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem',
+                '&:hover': {
+                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
+                },
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                Right (Modified)
+              </Typography>
+              <Box>
+                {result.rightLines.map((line, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      p: 0.5,
+                      backgroundColor:
+                        line.type === 'added'
+                          ? colors.added
+                          : line.type === 'unchanged'
+                          ? 'transparent'
+                          : colors.modified,
+                      borderLeft:
+                        line.type === 'added' ? `3px solid ${colors.addedBorder}` : 'none',
+                    }}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: 'text.secondary',
+                        mr: 1,
+                        fontFamily: 'monospace',
+                        minWidth: '40px',
+                        display: 'inline-block',
+                      }}
+                    >
+                      {line.lineNumber}
+                    </Typography>
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {renderLineWithChanges(line, colors)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Paper>
           </Grid>
         </Grid>
       </Box>

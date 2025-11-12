@@ -25,32 +25,10 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
-import { prettifyXML } from '@/utils/xmlFormatter'
+import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import SettingsIcon from '@mui/icons-material/Settings'
 
 const STORAGE_KEY = 'diff-suite-state'
-
-function loadState() {
-  if (typeof window === 'undefined') return null
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (error) {
-    console.error('Failed to load state from localStorage:', error)
-  }
-  return null
-}
-
-function saveState(state: any) {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch (error) {
-    console.error('Failed to save state to localStorage:', error)
-  }
-}
 
 export default function Home() {
   const [formatType, setFormatType] = useState<FormatType>('json')
@@ -552,8 +530,6 @@ export default function Home() {
           />
         )}
       </Container>
-      {/* <Footer /> */}
-
 
       <Snackbar
         open={snackbar.open}

@@ -3,9 +3,9 @@ import { compareXML } from '../utils/comparators/xmlComparator'
 import { validateJSON } from '../utils/validators/jsonValidator'
 import { validateXML } from '../utils/validators/xmlValidator'
 import { createLineDiff } from '../utils/diffUtils/lineDiff'
-import { computeDiff, sortObjectKeys, computeLineDiff, type DiffResult, type DiffLine } from '../utils/diffChecker'
-import { normalizeXMLAttributes } from '../utils/xmlNormalizer'
-import { prettifyXML } from '../utils/xmlFormatter'
+import { computeLineDiff, type DiffResult, type DiffLine } from '../utils/diffUtils/diffChecker'
+import { normalizeXMLAttributes } from '../utils/diffUtils/xmlNormalizer'
+import { prettifyXML } from '../utils/diffUtils/xmlFormatter'
 import { compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 type MessageIn = {
@@ -20,6 +20,7 @@ type PostResult = {
   id: string
   result?: any
   error?: string
+  type?: 'result' | 'error'
 }
 
 type ProgressMsg = {
@@ -47,20 +48,22 @@ function computeDiffProgressive(
     const rightLines = (right ?? '').split('\n')
     const total = Math.max(1, leftLines.length + rightLines.length)
 
-    const leftResult: DiffLine[] = []
-    const rightResult: DiffLine[] = []
-    let hasChanges = false
-    let li = 0
-    let ri = 0
-
+    // Pre-normalize once to avoid repeated regex and lowercasing in the hot loop
     const normalize = (s: string) => {
       let n = s
       if (options.ignoreWhitespace) n = n.replace(/\s+/g, ' ').trim()
       if (options.caseSensitive === false) n = n.toLowerCase()
       return n
     }
+    const leftNorm = leftLines.map(normalize)
+    const rightNorm = rightLines.map(normalize)
 
-    const linesMatch = (l: string, r: string) => normalize(l) === normalize(r)
+    const leftResult: DiffLine[] = []
+    const rightResult: DiffLine[] = []
+    let hasChanges = false
+    let li = 0
+    let ri = 0
+
     const CHUNK = 500
     let lastReported = -1
 
@@ -77,13 +80,13 @@ function computeDiffProgressive(
           leftResult.push({ type: 'removed', content: l, lineNumber: li + 1 })
           hasChanges = true
           li++
-        } else if (linesMatch(l, r)) {
+        } else if (leftNorm[li] === rightNorm[ri]) {
           leftResult.push({ type: 'unchanged', content: l, lineNumber: li + 1, correspondingLine: ri + 1 })
           rightResult.push({ type: 'unchanged', content: r, lineNumber: ri + 1, correspondingLine: li + 1 })
           li++; ri++
         } else {
-          const leftNextMatch = rightLines.findIndex((line, idx) => idx > ri && linesMatch(l, line))
-          const rightNextMatch = leftLines.findIndex((line, idx) => idx > li && linesMatch(r, line))
+          const leftNextMatch = rightNorm.indexOf(leftNorm[li], ri + 1)
+          const rightNextMatch = leftNorm.indexOf(rightNorm[ri], li + 1)
           if (leftNextMatch !== -1 && (rightNextMatch === -1 || leftNextMatch < rightNextMatch)) {
             rightResult.push({ type: 'added', content: r, lineNumber: ri + 1 })
             hasChanges = true
@@ -106,7 +109,8 @@ function computeDiffProgressive(
       if (li < leftLines.length || ri < rightLines.length) {
         setTimeout(step, 0)
       } else {
-        onProgress(100)
+        // Avoid posting a terminal 100% progress. The UI hides on result.
+        onProgress(99)
         resolve({ leftLines: leftResult, rightLines: rightResult, hasChanges })
       }
     }
@@ -114,6 +118,43 @@ function computeDiffProgressive(
     setTimeout(step, 0)
   })
 }
+
+const processLines = (
+  lines: Array<{ lineNumber: number; type: string; content?: string }>,
+  oppositeLines: Array<{ lineNumber: number; type: string; content?: string }>,
+  isLeft: boolean
+) => {
+  return lines.map((line, idx) => {
+    const base: any = {
+      lineNumber: line.lineNumber,
+      type: line.type === 'changed' ? (isLeft ? 'removed' : 'added') : line.type,
+      content: line.content
+    };
+
+    const oppositeLine = oppositeLines[idx];
+    if (line.type === 'changed' && oppositeLine?.type === 'changed') {
+      const [content1, content2] = isLeft 
+        ? [line.content ?? '', oppositeLine.content ?? '']
+        : [oppositeLine.content ?? '', line.content ?? ''];
+      
+      const parts = computeLineDiff(content1, content2).parts;
+      
+      base.changes = parts.map(p => {
+        if (isLeft) {
+          return p.removed ? { type: 'removed', value: p.value }
+               : p.added ? { type: 'added', value: '' }
+               : { type: 'unchanged', value: p.value };
+        } else {
+          return p.added ? { type: 'added', value: p.value }
+               : p.removed ? { type: 'removed', value: '' }
+               : { type: 'unchanged', value: p.value };
+        }
+      });
+    }
+
+    return base;
+  });
+};
 
 self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
   const { id, left, right, formatType, options } = ev.data
@@ -141,7 +182,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
             } : undefined,
           }
         }
-        const out: PostResult = { id, result: res }
+        const out: PostResult = { id, result: res, type: 'result' }
         // @ts-ignore - worker context
         self.postMessage(out)
         return
@@ -189,7 +230,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
           leftLines: d.leftLines.map((l) => ({ lineNumber: l.lineNumber, type: l.type === 'changed' ? 'removed' : (l.type as any), content: l.content })),
           rightLines: d.rightLines.map((r) => ({ lineNumber: r.lineNumber, type: r.type === 'changed' ? 'added' : (r.type as any), content: r.content })),
         }
-        const out: PostResult = { id, result }
+        const out: PostResult = { id, result, type: 'result' }
         // @ts-ignore
         self.postMessage(out)
         return
@@ -219,11 +260,11 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               }
             } catch {}
           }
-          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
+          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
         } catch (_) {}
       }
-      const out: PostResult = { id, result: resultWithLines }
+      const out: PostResult = { id, result: resultWithLines, type: 'result' }
       // @ts-ignore
       self.postMessage(out)
       return
@@ -310,7 +351,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               rightForDiff = prettifyXML(right)
             }
           } catch { /* keep originals on failure */ }
-          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: !!options?.caseSensitive })
+          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
         } catch (_) {}
       }
@@ -336,22 +377,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         d.rightLines.filter((x) => x.type === 'changed').length
       )
       // Build inline changes for 'changed' pairs
-      const leftLines = d.leftLines.map((l, idx) => {
-        const base: any = { lineNumber: l.lineNumber, type: l.type === 'changed' ? 'removed' : (l.type as any), content: l.content }
-        if (l.type === 'changed' && d.rightLines[idx] && d.rightLines[idx].type === 'changed') {
-          const parts = computeLineDiff(l.content ?? '', d.rightLines[idx].content ?? '').parts
-          base.changes = parts.map(p => p.removed ? { type: 'removed', value: p.value } : p.added ? { type: 'added', value: '' } : { type: 'unchanged', value: p.value })
-        }
-        return base
-      })
-      const rightLines = d.rightLines.map((r, idx) => {
-        const base: any = { lineNumber: r.lineNumber, type: r.type === 'changed' ? 'added' : (r.type as any), content: r.content }
-        if (r.type === 'changed' && d.leftLines[idx] && d.leftLines[idx].type === 'changed') {
-          const parts = computeLineDiff(d.leftLines[idx].content ?? '', r.content ?? '').parts
-          base.changes = parts.map(p => p.added ? { type: 'added', value: p.value } : p.removed ? { type: 'removed', value: '' } : { type: 'unchanged', value: p.value })
-        }
-        return base
-      })
+      const leftLines = processLines(d.leftLines, d.rightLines, true);
+      const rightLines = processLines(d.rightLines, d.leftLines, false);
       const result = {
         identical: added === 0 && removed === 0 && modified === 0,
         summary: { added, removed, modified },
@@ -359,20 +386,21 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         leftLines,
         rightLines,
       }
-      const out: PostResult = { id, result }
+      const out: PostResult = { id, result, type: 'result' }
       // @ts-ignore
       self.postMessage(out)
     } else {
       const comparisonResult = compareTextEnhanced(left ?? '', right ?? '', options || {})
-      const out: PostResult = { id, result: comparisonResult }
+      const out: PostResult = { id, result: comparisonResult, type: 'result' }
       // @ts-ignore
       self.postMessage(out)
     }
   } catch (err: any) {
-    const out: PostResult = { id, error: err instanceof Error ? err.message : String(err) }
+    const out: PostResult = { id, error: err instanceof Error ? err.message : String(err), type: 'error' }
     // @ts-ignore
     self.postMessage(out)
   }
 })
+
 
 export {}
