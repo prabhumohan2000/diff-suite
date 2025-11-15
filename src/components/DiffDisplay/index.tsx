@@ -60,14 +60,17 @@ export default function DiffDisplay({
 
   // Color scheme based on theme
   const colors = {
-    added: isDark ? 'rgba(168, 85, 247, 0.25)' : 'rgba(168, 85, 247, 0.15)',
-    removed: isDark ? 'rgba(236, 72, 153, 0.25)' : 'rgba(236, 72, 153, 0.15)',
-    modified: isDark ? 'rgba(139, 92, 246, 0.25)' : 'rgba(139, 92, 246, 0.15)',
-    addedBorder: isDark ? '#a855f7' : '#a855f7',
-    removedBorder: isDark ? '#ec4899' : '#ec4899',
-    modifiedBorder: isDark ? '#8b5cf6' : '#8b5cf6',
-    addedText: isDark ? '#c084fc' : '#7c3aed',
-    removedText: isDark ? '#f472b6' : '#db2777',
+    // Use distinct hues so Added/Removed/Modified stand out clearly.
+    // Added = green, Removed = red, Modified = soft purple.
+    added: isDark ? 'rgba(16, 185, 129, 0.22)' : 'rgba(22, 163, 74, 0.14)',
+    removed: isDark ? 'rgba(239, 68, 68, 0.24)' : 'rgba(248, 113, 113, 0.16)',
+    modified: isDark ? 'rgba(168, 85, 247, 0.22)' : 'rgba(168, 85, 247, 0.14)',
+    addedBorder: isDark ? '#22c55e' : '#16a34a',
+    removedBorder: isDark ? '#ef4444' : '#dc2626',
+    modifiedBorder: isDark ? '#a855f7' : '#a855f7',
+    addedText: isDark ? '#6ee7b7' : '#166534',
+    removedText: isDark ? '#fecaca' : '#7f1d1d',
+    modifiedText: isDark ? '#ede9fe' : '#6d28d9',
   }
 
   // For JSON and XML, virtualized side-by-side view
@@ -117,7 +120,8 @@ export default function DiffDisplay({
               size="small"
               sx={{ 
                 backgroundColor: colors.modified, 
-                border: `1px solid ${colors.modifiedBorder}`,
+                border: `1px dashed ${colors.modifiedBorder}`,
+                color: colors.modifiedText,
                 fontWeight: 600,
                 transition: 'all 0.2s',
                 '&:hover': {
@@ -125,6 +129,12 @@ export default function DiffDisplay({
                 },
               }}
             />
+            <Typography
+              variant="caption"
+              sx={{ ml: 1, opacity: 0.8 }}
+            >
+              Modified = value changed (old vs new)
+            </Typography>
           </Stack>
         </Paper>
         <Grid container spacing={2}>

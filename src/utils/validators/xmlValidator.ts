@@ -13,11 +13,24 @@ export interface ValidationResult {
 }
 
 export function validateXML(xmlString: string): ValidationResult {
+  // Empty input is always invalid
   if (!xmlString.trim()) {
     return {
       valid: false,
       error: {
         message: 'Empty input',
+      },
+    }
+  }
+
+  // XML 1.0 does not allow most control characters (including \x00)
+  // Only allow tab (0x09), line feed (0x0A), and carriage return (0x0D)
+  const illegalControlCharPattern = /[\x00-\x08\x0B\x0C\x0E-\x1F]/
+  if (illegalControlCharPattern.test(xmlString)) {
+    return {
+      valid: false,
+      error: {
+        message: 'Illegal control character in XML',
       },
     }
   }

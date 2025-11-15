@@ -119,6 +119,34 @@ function computeDiffProgressive(
   })
 }
 
+// Normalize all string values in a JSON-like structure according to options
+function normalizeJSONStrings(
+  value: any,
+  options: { ignoreWhitespace?: boolean; caseSensitive?: boolean }
+): any {
+  if (typeof value === 'string') {
+    let v = value
+    if (options.ignoreWhitespace) {
+      v = v.replace(/\s+/g, ' ').trim()
+    }
+    if (options.caseSensitive === false) {
+      v = v.toLowerCase()
+    }
+    return v
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeJSONStrings(item, options))
+  }
+  if (value && typeof value === 'object') {
+    const out: any = {}
+    for (const k of Object.keys(value)) {
+      out[k] = normalizeJSONStrings(value[k], options)
+    }
+    return out
+  }
+  return value
+}
+
 const processLines = (
   lines: Array<{ lineNumber: number; type: string; content?: string }>,
   oppositeLines: Array<{ lineNumber: number; type: string; content?: string }>,
@@ -196,22 +224,37 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
       if (isLarge) {
         let leftText = left
         let rightText = right
-        // Normalize key order for consistent line-by-line comparison only when ignoreKeyOrder is false
-        if (!options?.ignoreKeyOrder) {
-          try {
-            const l = JSON.parse(leftText)
-            const r = JSON.parse(rightText)
-            if (l !== null && typeof l === 'object' && !Array.isArray(l) &&
-                r !== null && typeof r === 'object' && !Array.isArray(r)) {
-              // When ignoreKeyOrder is false, reorder right to match left's key order
-              const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
-              const reorderedRight = reorderObjectKeys(r, l)
-              leftText = JSON.stringify(l, null, 2)
-              rightText = JSON.stringify(reorderedRight, null, 2)
-            }
-          } catch {}
+        try {
+          const leftParsed = JSON.parse(leftText)
+          const rightParsed = JSON.parse(rightText)
+
+          // Normalize all string values based on whitespace/case options
+          let normLeft = normalizeJSONStrings(leftParsed, {
+            ignoreWhitespace: !!options?.ignoreWhitespace,
+            caseSensitive: options?.caseSensitive !== false,
+          })
+          let normRight = normalizeJSONStrings(rightParsed, {
+            ignoreWhitespace: !!options?.ignoreWhitespace,
+            caseSensitive: options?.caseSensitive !== false,
+          })
+
+          // When ignoreKeyOrder is false, reorder keys on the right to match the left
+          if (!options?.ignoreKeyOrder &&
+              normLeft !== null && typeof normLeft === 'object' && !Array.isArray(normLeft) &&
+              normRight !== null && typeof normRight === 'object' && !Array.isArray(normRight)) {
+            const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
+            normRight = reorderObjectKeys(normRight, normLeft)
+          }
+
+          leftText = JSON.stringify(normLeft, null, 2)
+          rightText = JSON.stringify(normRight, null, 2)
+        } catch {
+          // If normalization fails, fall back to raw text comparison below.
         }
+
         const diffOptions = {
+          // After structural normalization above, we only need line-level
+          // whitespace ignore for indentation/formatting differences.
           ignoreWhitespace: !!options?.ignoreWhitespace,
           caseSensitive: options?.caseSensitive !== false,
         }
@@ -242,24 +285,34 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
       let resultWithLines: any = comparisonResult
       if (options?.includeLineDiff) {
         try {
-          // Normalize both JSONs to same key order for line diff only when ignoreKeyOrder is false
           let leftForDiff = left
           let rightForDiff = right
-          if (!options?.ignoreKeyOrder) {
-            // When ignoreKeyOrder is false, normalize key order for consistent line-by-line comparison
-            try {
-              const leftParsed = JSON.parse(left)
-              const rightParsed = JSON.parse(right)
-              if (leftParsed !== null && typeof leftParsed === 'object' && !Array.isArray(leftParsed) &&
-                  rightParsed !== null && typeof rightParsed === 'object' && !Array.isArray(rightParsed)) {
-                // Reorder right to match left's key order
-                const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
-                const reorderedRight = reorderObjectKeys(rightParsed, leftParsed)
-                leftForDiff = JSON.stringify(leftParsed, null, 2)
-                rightForDiff = JSON.stringify(reorderedRight, null, 2)
-              }
-            } catch {}
-          }
+          try {
+            const leftParsed = JSON.parse(left)
+            const rightParsed = JSON.parse(right)
+
+            // Normalize string values according to whitespace/case options
+            let normLeft = normalizeJSONStrings(leftParsed, {
+              ignoreWhitespace: !!options?.ignoreWhitespace,
+              caseSensitive: options?.caseSensitive !== false,
+            })
+            let normRight = normalizeJSONStrings(rightParsed, {
+              ignoreWhitespace: !!options?.ignoreWhitespace,
+              caseSensitive: options?.caseSensitive !== false,
+            })
+
+            // When ignoreKeyOrder is false, reorder keys on the right to match the left
+            if (!options?.ignoreKeyOrder &&
+                normLeft !== null && typeof normLeft === 'object' && !Array.isArray(normLeft) &&
+                normRight !== null && typeof normRight === 'object' && !Array.isArray(normRight)) {
+              const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
+              normRight = reorderObjectKeys(normRight, normLeft)
+            }
+
+            leftForDiff = JSON.stringify(normLeft, null, 2)
+            rightForDiff = JSON.stringify(normRight, null, 2)
+          } catch {}
+
           const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
         } catch (_) {}

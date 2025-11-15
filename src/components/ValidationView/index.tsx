@@ -100,6 +100,41 @@ export default function ValidationView({
 
   return (
     <Box className="w-full">
+      <Box className="mb-3 flex gap-4 flex-wrap justify-end">
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => startTransition(() => handleValidate())}
+          disabled={loading || !content.trim()}
+          className="w-full sm:w-auto min-w-[160px] smooth-transition"
+          sx={{
+            fontWeight: 700,
+            textTransform: 'none',
+            background: '#dc2626',
+            boxShadow: '0 4px 16px rgba(248, 113, 113, 0.45)',
+            py: 1.25,
+            px: 4,
+            borderRadius: 3,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              filter: 'brightness(108%)',
+              boxShadow: '0 6px 22px rgba(248, 113, 113, 0.6)',
+              transform: 'translateY(-2px)',
+            },
+            '&:active': {
+              transform: 'translateY(0)',
+              boxShadow: '0 2px 10px rgba(248, 113, 113, 0.5)',
+            },
+            '&:disabled': {
+              background: 'rgba(0, 0, 0, 0.12)',
+              boxShadow: 'none',
+            },
+          }}
+          disableElevation
+        >
+          {loading ? 'Validating...' : 'Validate'}
+        </Button>
+      </Box>
       <Paper 
         elevation={0}
         className="glass-card dark:glass-card-dark p-4 smooth-transition"
@@ -126,43 +161,6 @@ export default function ValidationView({
           />
         </FileDropZone>
       </Paper>
-
-      <Box className="mt-4 flex gap-4 flex-wrap">
-        <Button
-          variant="contained"
-          onClick={() => startTransition(() => handleValidate())}
-          disabled={loading || !content.trim()}
-          // fullWidth={{ xs: true, sm: false }}
-          className="w-full sm:w-auto min-w-[200px] smooth-transition"
-          sx={{
-            background: '#7c3aed',
-            boxShadow: '0 4px 16px rgba(236, 72, 153, 0.4)',
-            fontWeight: 700,
-            textTransform: 'none',
-            py: 1.5,
-            px: 4,
-            borderRadius: 3,
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              filter: 'brightness(110%)',
-              boxShadow: '0 6px 20px rgba(236, 72, 153, 0.5)',
-              transform: 'translateY(-2px)',
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.4)',
-            },
-            '&:disabled': {
-              background: 'rgba(0, 0, 0, 0.12)',
-              boxShadow: 'none',
-            },
-          }}
-          disableRipple
-          disableElevation
-        >
-          {loading ? 'Validating...' : 'Validate'}
-        </Button>
-      </Box>
 
       {result && content.trim() && (
         <Box ref={resultsRef} className="mt-6 smooth-transition">

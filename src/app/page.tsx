@@ -31,8 +31,26 @@ import SettingsIcon from '@mui/icons-material/Settings'
 const STORAGE_KEY = 'diff-suite-state'
 
 export default function Home() {
-  const [formatType, setFormatType] = useState<FormatType>('json')
-  const [actionType, setActionType] = useState<ActionType>('validate')
+  // Initialize mode tabs from localStorage so refreshes land
+  // on the last-used JSON/XML/Text + Validate/Compare selection.
+  const [formatType, setFormatType] = useState<FormatType>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('diffsuite_format_type') as FormatType | null
+      if (saved === 'json' || saved === 'xml' || saved === 'text') {
+        return saved
+      }
+    }
+    return 'json'
+  })
+  const [actionType, setActionType] = useState<ActionType>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('diffsuite_action_type') as ActionType | null
+      if (saved === 'validate' || saved === 'compare') {
+        return saved
+      }
+    }
+    return 'validate'
+  })
   const [leftContent, setLeftContent] = useState('')
   const [rightContent, setRightContent] = useState('')
   const [options, setOptions] = useState<ComparisonOptions>({
@@ -50,46 +68,56 @@ export default function Home() {
     return true
   })
 
-  // Load state from sessionStorage on mount if enabled
+  // Load content/options from persistent storage on mount when enabled.
+  // Mode tabs are restored via the lazy useState initializers above.
   useEffect(() => {
-    if (enableStorage && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
-        const savedLeft = sessionStorage.getItem('diffsuite_input_1') || ''
-        const savedRight = sessionStorage.getItem('diffsuite_input_2') || ''
-        const savedFmt = sessionStorage.getItem('diffsuite_format_type') as FormatType | null
-        const savedAct = sessionStorage.getItem('diffsuite_action_type') as ActionType | null
-        const savedOpt = sessionStorage.getItem('diffsuite_options')
+        const storage = window.localStorage
 
-        // Always restore saved content regardless of format
-        if (savedLeft) setLeftContent(savedLeft)
-        if (savedRight) setRightContent(savedRight)
-        if (savedFmt) setFormatType(savedFmt)
-        if (savedAct) setActionType(savedAct)
-        if (savedOpt) setOptions(JSON.parse(savedOpt))
+        const savedLeft = storage.getItem('diffsuite_input_1') || ''
+        const savedRight = storage.getItem('diffsuite_input_2') || ''
+        const savedOpt = storage.getItem('diffsuite_options')
+
+        // Restore content/settings only when storage is enabled
+        if (enableStorage) {
+          if (savedLeft) setLeftContent(savedLeft)
+          if (savedRight) setRightContent(savedRight)
+          if (savedOpt) setOptions(JSON.parse(savedOpt))
+        }
       } catch (e) {
         console.error('Failed to restore from sessionStorage', e)
       }
-    } else if (!enableStorage && typeof window !== 'undefined') {
-      // Clear any old session data
-      sessionStorage.removeItem('diffsuite_input_1')
-      sessionStorage.removeItem('diffsuite_input_2')
-      sessionStorage.removeItem('diffsuite_format_type')
-      sessionStorage.removeItem('diffsuite_action_type')
-      sessionStorage.removeItem('diffsuite_options')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableStorage])
 
-  // Save state to sessionStorage whenever it changes and enabled
+  // Save state to localStorage.
+  // Mode tabs (format/action) are always saved; content/options only when enabled,
+  // and cleared when both sides are empty.
   useEffect(() => {
-    if (enableStorage && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
-        // Save all content regardless of current format
-        sessionStorage.setItem('diffsuite_format_type', formatType)
-        sessionStorage.setItem('diffsuite_action_type', actionType)
-        if (leftContent) sessionStorage.setItem('diffsuite_input_1', leftContent)
-        if (rightContent) sessionStorage.setItem('diffsuite_input_2', rightContent)
-        sessionStorage.setItem('diffsuite_options', JSON.stringify(options))
+        const storage = window.localStorage
+        storage.setItem('diffsuite_format_type', formatType)
+        storage.setItem('diffsuite_action_type', actionType)
+
+        if (enableStorage) {
+          const hasContent = !!leftContent || !!rightContent
+          if (hasContent) {
+            if (leftContent) storage.setItem('diffsuite_input_1', leftContent)
+            else storage.removeItem('diffsuite_input_1')
+
+            if (rightContent) storage.setItem('diffsuite_input_2', rightContent)
+            else storage.removeItem('diffsuite_input_2')
+
+            storage.setItem('diffsuite_options', JSON.stringify(options))
+          } else {
+            storage.removeItem('diffsuite_input_1')
+            storage.removeItem('diffsuite_input_2')
+            storage.removeItem('diffsuite_options')
+          }
+        }
       } catch (e) {
         console.error('Failed to save to sessionStorage', e)
       }
@@ -98,24 +126,44 @@ export default function Home() {
 
 
   const handleFormatChange = useCallback((newFormat: FormatType) => {
+    if (newFormat === formatType) return
+
     setFormatType(newFormat)
-    
+
     // Text mode only supports compare action
     if (newFormat === 'text') {
       setActionType('compare')
     }
 
-    // Reset comparison options when format changes but preserve content
-    if (newFormat !== formatType) {
-      setOptions({
-        ignoreKeyOrder: false,
-        ignoreArrayOrder: false,
-        ignoreAttributeOrder: false,
-        caseSensitive: true,
-        ignoreWhitespace: false
-      })
-    }
-  }, [formatType, setOptions])
+    // Reset comparison options and clear editors when format changes
+    setOptions({
+      ignoreKeyOrder: false,
+      ignoreArrayOrder: false,
+      ignoreAttributeOrder: false,
+      caseSensitive: true,
+      ignoreWhitespace: false,
+    })
+    setLeftContent('')
+    setRightContent('')
+
+    // Also clear persisted content for the previous format to avoid confusion
+    try {
+      if (typeof window !== 'undefined') {
+        const storages = [window.localStorage, window.sessionStorage]
+        for (const s of storages) {
+          try {
+            s.removeItem('diffsuite_input_1')
+            s.removeItem('diffsuite_input_2')
+          } catch {}
+        }
+        // Reset any existing results
+        // @ts-ignore
+        window.comparisonViewResetRef?.current?.()
+        // @ts-ignore
+        window.validationViewResetRef?.current?.()
+      }
+    } catch {}
+  }, [formatType])
 
   const handleActionChange = useCallback((newAction: ActionType) => {
     setActionType(newAction)
@@ -218,13 +266,16 @@ export default function Home() {
   const handleReset = useCallback(() => {
     setLeftContent('')
     setRightContent('')
-    // Clear any persisted session data for inputs/options
+    // Clear any persisted data for inputs only
     try {
       if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('diffsuite_input_1')
-        sessionStorage.removeItem('diffsuite_input_2')
-        // Keep format/action unless explicitly changed by user
-        // sessionStorage.removeItem('diffsuite_options') // optional: keep options
+        const storages = [window.localStorage, window.sessionStorage]
+        for (const s of storages) {
+          try {
+            s.removeItem('diffsuite_input_1')
+            s.removeItem('diffsuite_input_2')
+          } catch {}
+        }
       }
     } catch {}
     // Attempt to reset any child view state if available
@@ -342,12 +393,16 @@ export default function Home() {
           setEnableStorage(enabled)
           localStorage.setItem('diff-suite-storage-enabled', String(enabled))
           if (!enabled) {
-            // Clear sessionStorage and reset state for clarity
-            sessionStorage.removeItem('diffsuite_json_input_1')
-            sessionStorage.removeItem('diffsuite_json_input_2')
-            sessionStorage.removeItem('diffsuite_format_type')
-            sessionStorage.removeItem('diffsuite_action_type')
-            sessionStorage.removeItem('diffsuite_options')
+            // Clear persisted input/options and reset content for clarity.
+            // Keep last used mode tabs intact.
+            const storages = [window.localStorage, window.sessionStorage]
+            for (const s of storages) {
+              try {
+                s.removeItem('diffsuite_input_1')
+                s.removeItem('diffsuite_input_2')
+                s.removeItem('diffsuite_options')
+              } catch {}
+            }
             setLeftContent('')
             setRightContent('')
             setOptions({
@@ -371,31 +426,164 @@ export default function Home() {
           onActionChange={handleActionChange}
         />
 
-        <Stack direction="row" spacing={1} className="mb-4 flex-wrap gap-2 justify-center">
-          <Tooltip title="Upload file">
-            <IconButton
-              component="label"
-              size="small"
-              aria-label="upload file"
-            >
-              <FileUploadIcon />
-              <input
-                type="file"
-                hidden
-                accept={
-                  formatType === 'json'
-                    ? '.json'
-                    : formatType === 'xml'
-                    ? '.xml'
-                    : '.txt,.text'
-                }
-                onChange={(e) => handleFileUpload(actionType === 'validate' ? 'left' : 'left', e)}
-              />
-            </IconButton>
-          </Tooltip>
-          {actionType === 'compare' && (
-            <>
-              <Tooltip title="Upload file for right side">
+        {actionType === 'validate' ? (
+          <Stack
+            direction="row"
+            spacing={1}
+            className="mb-4 flex-wrap gap-2 justify-center"
+          >
+            <Tooltip title="Upload file for left side">
+              <IconButton
+                component="label"
+                size="small"
+                aria-label="upload file left"
+              >
+                <FileUploadIcon />
+                <input
+                  type="file"
+                  hidden
+                  accept={
+                    formatType === 'json'
+                      ? '.json'
+                      : formatType === 'xml'
+                      ? '.xml'
+                      : '.txt,.text'
+                  }
+                  onChange={(e) => handleFileUpload('left', e)}
+                />
+              </IconButton>
+            </Tooltip>
+            {leftContent && (
+              <>
+                {(formatType === 'json' || formatType === 'xml') && (
+                  <Tooltip title={`Prettify ${formatType.toUpperCase()}`}>
+                    <IconButton size="small" onClick={() => handlePrettify('single')} aria-label="prettify">
+                      <AutoFixHighIcon />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title="Download content">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDownload(leftContent, `validate.${formatType}`)}
+                    aria-label="download validate content"
+                  >
+                    <DownloadIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Copy content">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleCopy(leftContent)}
+                    aria-label="copy"
+                  >
+                    <ContentCopyIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+            <Tooltip title="Reset">
+              <IconButton size="small" onClick={handleReset} aria-label="reset">
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        ) : (
+          <Stack
+            direction="row"
+            spacing={1}
+            className="mb-4 flex-wrap gap-2"
+            sx={{
+              justifyContent: { xs: 'center', md: 'space-between' },
+              alignItems: 'center',
+              display: { xs: 'none', md: 'flex' }, // hide global compare toolbar on mobile
+            }}
+          >
+            {/* Left-aligned controls (left editor) */}
+            <Box className="flex items-center gap-2">
+              <Tooltip title="Upload left content">
+                <IconButton
+                  component="label"
+                  size="small"
+                  aria-label="upload file left"
+                >
+                  <FileUploadIcon />
+                  <input
+                    type="file"
+                    hidden
+                    accept={
+                      formatType === 'json'
+                        ? '.json'
+                        : formatType === 'xml'
+                        ? '.xml'
+                        : '.txt,.text'
+                    }
+                    onChange={(e) => handleFileUpload('left', e)}
+                  />
+                </IconButton>
+              </Tooltip>
+              {leftContent && (
+                <>
+                  <Tooltip title="Download left content">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDownload(leftContent, `left.${formatType}`)}
+                      aria-label="download left"
+                    >
+                      <DownloadIcon />
+                    </IconButton>
+                  </Tooltip>
+                  {(formatType === 'json' || formatType === 'xml') && (
+                    <Tooltip title={`Prettify left ${formatType.toUpperCase()}`}>
+                      <IconButton size="small" onClick={() => handlePrettify('left')} aria-label="prettify left">
+                        <AutoFixHighIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <Tooltip title="Clear left">
+                    <IconButton
+                      size="small"
+                      onClick={() => setLeftContent('')}
+                      aria-label="clear left"
+                    >
+                      <RefreshIcon />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+            </Box>
+
+            {/* Center controls (shared actions) */}
+            <Box className="flex items-center gap-2 justify-center">
+              <Tooltip title="Swap left and right">
+                <IconButton
+                  size="small"
+                  onClick={handleSwap}
+                  aria-label="swap content"
+                  disabled={!leftContent.trim() || !rightContent.trim()}
+                >
+                  <SwapHorizIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Comparison Options">
+                <IconButton
+                  size="small"
+                  aria-label="comparison settings"
+                  onClick={(e) => {
+                    try {
+                      // @ts-ignore
+                      window.comparisonViewOpenSettings?.(e.currentTarget)
+                    } catch {}
+                  }}
+                >
+                  <SettingsIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* Right-aligned controls (right editor) */}
+            <Box className="flex items-center gap-2 justify-start">
+              <Tooltip title="Upload right conent">
                 <IconButton
                   component="label"
                   size="small"
@@ -416,99 +604,38 @@ export default function Home() {
                   />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Swap left and right">
-                <IconButton
-                  size="small"
-                  onClick={handleSwap}
-                  aria-label="swap content"
-                >
-                  <SwapHorizIcon />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-          {actionType === 'compare' && (
-            <Tooltip title="Comparison Options">
-              <IconButton
-                size="small"
-                aria-label="comparison settings"
-                onClick={(e) => {
-                  try {
-                    // @ts-ignore
-                    window.comparisonViewOpenSettings?.(e.currentTarget)
-                  } catch {}
-                }}
-              >
-                <SettingsIcon />
-              </IconButton>
-            </Tooltip>
-          )}
-          <Tooltip title="Reset">
-            <IconButton size="small" onClick={handleReset} aria-label="reset">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          {actionType === 'validate' && leftContent && (
-            <>
-              {(formatType === 'json' || formatType === 'xml') && (
-                <Tooltip title={`Prettify ${formatType.toUpperCase()}`}>
-                  <IconButton size="small" onClick={() => handlePrettify('single')} aria-label="prettify">
-                    <AutoFixHighIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
-            <Tooltip title="Copy content">
-              <IconButton
-                size="small"
-                onClick={() => handleCopy(leftContent)}
-                aria-label="copy"
-              >
-                <ContentCopyIcon />
-              </IconButton>
-            </Tooltip>
-            </>
-          )}
-          {actionType === 'compare' && (
-            <>
-              {leftContent && (
-                <Tooltip title="Download left content">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDownload(leftContent, `left.${formatType}`)}
-                    aria-label="download left"
-                  >
-                    <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {(leftContent && (formatType === 'json' || formatType === 'xml')) && (
-                <Tooltip title={`Prettify left ${formatType.toUpperCase()}`}>
-                  <IconButton size="small" onClick={() => handlePrettify('left')} aria-label="prettify left">
-                    <AutoFixHighIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
               {rightContent && (
-                <Tooltip title="Download right content">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDownload(rightContent, `right.${formatType}`)}
-                    aria-label="download right"
-                  >
-                    <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
+                <>
+                  <Tooltip title="Download right content">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDownload(rightContent, `right.${formatType}`)}
+                      aria-label="download right"
+                    >
+                      <DownloadIcon />
+                    </IconButton>
+                  </Tooltip>
+                  {(formatType === 'json' || formatType === 'xml') && (
+                    <Tooltip title={`Prettify right ${formatType.toUpperCase()}`}>
+                      <IconButton size="small" onClick={() => handlePrettify('right')} aria-label="prettify right">
+                        <AutoFixHighIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <Tooltip title="Clear right">
+                    <IconButton
+                      size="small"
+                      onClick={() => setRightContent('')}
+                      aria-label="clear right"
+                    >
+                      <RefreshIcon />
+                    </IconButton>
+                  </Tooltip>
+                </>
               )}
-              {(rightContent && (formatType === 'json' || formatType === 'xml')) && (
-                <Tooltip title={`Prettify right ${formatType.toUpperCase()}`}>
-                  <IconButton size="small" onClick={() => handlePrettify('right')} aria-label="prettify right">
-                    <AutoFixHighIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </>
-          )}
-        </Stack>
+            </Box>
+          </Stack>
+        )}
 
         {actionType === 'validate' ? (
           <ValidationView

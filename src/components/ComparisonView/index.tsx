@@ -25,6 +25,10 @@ import {
 } from '@mui/material'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import SettingsIcon from '@mui/icons-material/Settings'
+import FileUploadIcon from '@mui/icons-material/FileUpload'
+import DownloadIcon from '@mui/icons-material/Download'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
 import CodeEditor from '@/components/CodeEditor'
@@ -64,6 +68,7 @@ export default function ComparisonView({
   const [showResults, setShowResults] = useState(false)
   const [loading, setLoading] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [anchorPosition, setAnchorPosition] = useState<{ top: number; left: number } | null>(null)
   const workerRef = useRef<Worker | null>(null)
   const pendingRequestIdRef = useRef<string | null>(null)
   const resultsRef = useRef<HTMLDivElement | null>(null)
@@ -137,11 +142,51 @@ export default function ComparisonView({
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+    setAnchorPosition(null);
   };
 
   const isLargeContent = useCallback((content: string) => {
     return content.length > 10_000 // Consider content large if over 50KB
   }, [])
+
+  const handleDownload = useCallback((content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [])
+
+  const handlePrettifySide = useCallback((side: 'left' | 'right') => {
+    const target = side === 'left' ? leftContent : rightContent
+    const setSide = side === 'left' ? onLeftContentChange : onRightContentChange
+    try {
+      if (formatType === 'json') {
+        const valid = validateJSON(target)
+        if (!valid.valid) throw new Error('Cannot format invalid JSON')
+        const formatted = JSON.stringify(JSON.parse(target), null, 2)
+        setSide(formatted)
+        return
+      }
+      if (formatType === 'xml') {
+        const valid = validateXML(target)
+        if (!valid.valid) throw new Error('Cannot format invalid XML')
+        const formatted = prettifyXML(target)
+        setSide(formatted)
+        return
+      }
+    } catch (e: any) {
+      setSnackbar({
+        open: true,
+        message: e instanceof Error ? e.message : 'Could not format content',
+        severity: 'error',
+      })
+    }
+  }, [formatType, leftContent, rightContent, onLeftContentChange, onRightContentChange])
 
   // Centralized worker initialization to avoid duplicate logic
   const initWorker = useCallback(() => {
@@ -211,8 +256,20 @@ export default function ComparisonView({
     if (typeof window !== 'undefined') {
       // @ts-ignore
       window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
-        if (anchor) setAnchorEl(anchor)
-        else setAnchorEl(document.body as unknown as HTMLElement)
+        if (anchor) {
+          setAnchorEl(anchor)
+          const rect = anchor.getBoundingClientRect()
+          setAnchorPosition({
+            top: rect.bottom + 8,
+            left: rect.right - 8,
+          })
+        } else {
+          setAnchorEl(null)
+          setAnchorPosition({
+            top: window.innerHeight * 0.2,
+            left: window.innerWidth * 0.5,
+          })
+        }
       }
     }
     return () => {
@@ -481,7 +538,9 @@ export default function ComparisonView({
     <Box className="w-full relative z-10">
       <Menu
         anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
+        anchorReference={anchorPosition ? 'anchorPosition' : 'anchorEl'}
+        anchorPosition={anchorPosition || undefined}
+        open={Boolean(anchorEl || anchorPosition)}
         onClose={handleMenuClose}
         PaperProps={{
           elevation: 0,
@@ -562,6 +621,50 @@ export default function ComparisonView({
         </svg>
       </Menu>
 
+      <Box className="mb-3 flex justify-center items-center gap-2">
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => startTransition(() => handleCompare())}
+          disabled={loading || !leftContent.trim() || !rightContent.trim()}
+          className="w-full sm:w-auto min-w-[160px] smooth-transition"
+          // startIcon={loading ? null : <CompareArrowsIcon />}
+          sx={{
+            fontWeight: 700,
+            textTransform: 'none',
+            background: '#dc2626',
+            boxShadow: '0 4px 16px rgba(248, 113, 113, 0.45)',
+            py: 1.25,
+            px: 4,
+            borderRadius: 3,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              filter: 'brightness(108%)',
+              boxShadow: '0 6px 22px rgba(248, 113, 113, 0.6)',
+              transform: 'translateY(-2px)',
+            },
+            '&:active': {
+              transform: 'translateY(0)',
+              boxShadow: '0 2px 10px rgba(248, 113, 113, 0.5)',
+            },
+            '&:disabled': {
+              background: 'rgba(0, 0, 0, 0.12)',
+              boxShadow: 'none',
+            },
+          }}
+          disableElevation
+        >
+          {loading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={20} color="inherit" />
+              <span>Processing...</span>
+            </Box>
+          ) : (
+            'Compare'
+          )}
+        </Button>
+      </Box>
+
       <Grid container spacing={2}>
         <Grid item xs={12} md={5.5}>
           <Paper 
@@ -584,13 +687,80 @@ export default function ComparisonView({
               formatType={formatType}
             onFileInfoChange={(info) => setLeftFileInfo(info)}
             >
-              <CodeEditor
-                value={leftContent}
-                onChange={handleLeftChange}
-                formatType={formatType}
-                label=""
-                placeholder={`Paste first ${formatType.toUpperCase()} here...`}
-              />
+            <>
+              <Box
+                  sx={{
+                    display: { xs: 'flex', md: 'none' },
+                    mt: 1,
+                    mb: 1,
+                    gap: 1,
+                    justifyContent: 'flex-start',
+                  }}
+                >
+                  <IconButton
+                    component="label"
+                    size="small"
+                    aria-label="upload left mobile"
+                  >
+                    <FileUploadIcon fontSize="small" />
+                    <input
+                      type="file"
+                      hidden
+                      accept={
+                        formatType === 'json'
+                          ? '.json'
+                          : formatType === 'xml'
+                          ? '.xml'
+                          : '.txt,.text'
+                      }
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = (ev) => {
+                          const content = ev.target?.result as string
+                          handleLeftChange(content)
+                        }
+                        reader.readAsText(file)
+                      }}
+                    />
+                  </IconButton>
+                  {leftContent && (
+                    <>
+                      <IconButton
+                        size="small"
+                        aria-label="download left mobile"
+                        onClick={() => handleDownload(leftContent, `left.${formatType}`)}
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                      {(formatType === 'json' || formatType === 'xml') && (
+                        <IconButton
+                          size="small"
+                          aria-label="prettify left mobile"
+                          onClick={() => handlePrettifySide('left')}
+                        >
+                          <AutoFixHighIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      <IconButton
+                        size="small"
+                        aria-label="clear left mobile"
+                        onClick={() => handleLeftChange('')}
+                      >
+                        <RefreshIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
+                </Box>
+                <CodeEditor
+                  value={leftContent}
+                  onChange={handleLeftChange}
+                  formatType={formatType}
+                  label=""
+                  placeholder={`Paste first ${formatType.toUpperCase()} here...`}
+                />
+              </>
             </FileDropZone>
           </Paper>
         </Grid>
@@ -637,63 +807,84 @@ export default function ComparisonView({
               formatType={formatType}
             onFileInfoChange={(info) => setRightFileInfo(info)}
             >
-              <CodeEditor
-                value={rightContent}
-                onChange={handleRightChange}
-                formatType={formatType}
-                label=""
-                placeholder={`Paste second ${formatType.toUpperCase()} here...`}
-              />
+            <>
+            <Box
+              sx={{
+                display: { xs: 'flex', md: 'none' },
+                mt: 1,
+                mb: 1,
+                gap: 1,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <IconButton
+                component="label"
+                size="small"
+                aria-label="upload right mobile"
+              >
+                <FileUploadIcon fontSize="small" />
+                <input
+                  type="file"
+                  hidden
+                  accept={
+                    formatType === 'json'
+                      ? '.json'
+                      : formatType === 'xml'
+                      ? '.xml'
+                      : '.txt,.text'
+                  }
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const reader = new FileReader()
+                    reader.onload = (ev) => {
+                      const content = ev.target?.result as string
+                      handleRightChange(content)
+                    }
+                    reader.readAsText(file)
+                  }}
+                />
+              </IconButton>
+              {rightContent && (
+                <>
+                  <IconButton
+                    size="small"
+                    aria-label="download right mobile"
+                    onClick={() => handleDownload(rightContent, `right.${formatType}`)}
+                  >
+                    <DownloadIcon fontSize="small" />
+                  </IconButton>
+                  {(formatType === 'json' || formatType === 'xml') && (
+                    <IconButton
+                      size="small"
+                      aria-label="prettify right mobile"
+                      onClick={() => handlePrettifySide('right')}
+                    >
+                      <AutoFixHighIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                  <IconButton
+                    size="small"
+                    aria-label="clear right mobile"
+                    onClick={() => handleRightChange('')}
+                  >
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </>
+              )}
+            </Box>
+            <CodeEditor
+              value={rightContent}
+              onChange={handleRightChange}
+              formatType={formatType}
+              label=""
+              placeholder={`Paste second ${formatType.toUpperCase()} here...`}
+            />
+          </>
             </FileDropZone>
           </Paper>
         </Grid>
       </Grid>
-
-      <Box className="mt-4 flex justify-center items-center gap-2">
-        <Button
-          variant="contained"
-          size="large"
-          onClick={() => startTransition(() => handleCompare())}
-          disabled={loading || !leftContent.trim() || !rightContent.trim()}
-          className="w-full sm:w-auto min-w-[200px] smooth-transition"
-          startIcon={loading ? null : <CompareArrowsIcon />}
-          sx={{
-            background: loading ? '#8a4baf' : '#7c3aed',
-            boxShadow: '0 4px 16px rgba(124, 58, 237, 0.3)',
-            fontWeight: 700,
-            textTransform: 'none',
-            py: 1.5,
-            px: 4,
-            mt: 1,
-            borderRadius: 3,
-            transition: 'all 0.3s ease',
-            '&:hover': {
-              filter: 'brightness(110%)',
-              boxShadow: '0 6px 20px rgba(236, 72, 153, 0.5)',
-              transform: 'translateY(-2px)',
-            },
-            '&:active': {
-              transform: 'translateY(0)',
-              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.4)',
-            },
-            '&:disabled': {
-              background: 'rgba(0, 0, 0, 0.12)',
-              boxShadow: 'none',
-            },
-          }}
-          disableRipple
-          disableElevation
-        >
-          {loading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CircularProgress size={20} color="inherit" />
-              <span>Processing...</span>
-            </Box>
-          ) : (
-            'Compare'
-          )}
-        </Button>
-      </Box>
 
       <Snackbar
         open={snackbar.open}

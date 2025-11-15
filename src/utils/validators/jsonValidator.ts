@@ -11,6 +11,7 @@ export interface ValidationResult {
 }
 
 export function validateJSON(jsonString: string): ValidationResult {
+  // Basic empty-input check
   if (!jsonString.trim()) {
     return {
       valid: false,
@@ -25,7 +26,7 @@ export function validateJSON(jsonString: string): ValidationResult {
     return { valid: true }
   } catch (error) {
     if (error instanceof SyntaxError) {
-      const message = error.message
+      let message = error.message
       
       // Try to extract line and column from error message
       const lineMatch = message.match(/position (\d+)/)
@@ -40,10 +41,23 @@ export function validateJSON(jsonString: string): ValidationResult {
         column = lines[lines.length - 1].length + 1
       }
 
+      // Normalize message by stripping environment-specific prefixes/suffixes
+      message =
+        message
+          .replace(/JSON\.parse:\s*/i, '')
+          .replace(/in JSON at position \d+/i, '')
+          .trim() || 'Invalid JSON syntax'
+
+      // Heuristic: detect common trailing comma patterns and provide
+      // a clearer, user-friendly error message that mentions "comma"
+      if (/,(\s*)[}\]]/.test(jsonString)) {
+        message = 'Trailing comma in JSON (remove the extra comma)'
+      }
+
       return {
         valid: false,
         error: {
-          message: message.replace(/JSON\.parse: /, '').replace(/in JSON at position \d+/, '').trim() || 'Invalid JSON syntax',
+          message,
           line,
           column,
           position,
