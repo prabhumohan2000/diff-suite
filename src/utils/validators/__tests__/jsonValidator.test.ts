@@ -56,6 +56,13 @@ describe('JSON Validator', () => {
       expect(result.valid).toBe(false)
       expect(result.error).toBeDefined()
     })
+
+    it('should treat primitive root values as invalid', () => {
+      expect(validateJSON('"t"').valid).toBe(false)
+      expect(validateJSON('123').valid).toBe(false)
+      expect(validateJSON('true').valid).toBe(false)
+      expect(validateJSON('null').valid).toBe(false)
+    })
   })
 
   describe('Error reporting', () => {

@@ -22,7 +22,21 @@ export function validateJSON(jsonString: string): ValidationResult {
   }
 
   try {
-    JSON.parse(jsonString)
+    const parsed = JSON.parse(jsonString)
+
+    // Enforce object/array as the top-level JSON type so that
+    // bare primitives like "t", 123, true, null are treated as
+    // invalid for this tool's use cases.
+    const isContainer = parsed !== null && typeof parsed === 'object'
+    if (!isContainer) {
+      return {
+        valid: false,
+        error: {
+          message: 'Top-level JSON must be an object or array',
+        },
+      }
+    }
+
     return { valid: true }
   } catch (error) {
     if (error instanceof SyntaxError) {

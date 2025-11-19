@@ -3,8 +3,8 @@ import { XMLParser, XMLBuilder } from 'fast-xml-parser'
 export interface DiffItem {
   type: 'added' | 'removed' | 'modified' | 'unchanged'
   path: string
-  oldValue?: string
-  newValue?: string
+  oldValue?: any
+  newValue?: any
   element?: string
   attribute?: string
 }
