@@ -15,6 +15,7 @@ import {
   Checkbox,
   FormControlLabel,
   FormGroup,
+  Tooltip,
   CircularProgress,
   Snackbar,
   IconButton,
@@ -31,6 +32,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CodeEditor from '@/components/CodeEditor'
 import DiffDisplay from '@/components/DiffDisplay'
 import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
@@ -74,6 +76,7 @@ export default function ComparisonView({
   const resultsRef = useRef<HTMLDivElement | null>(null)
   const [leftFileInfo, setLeftFileInfo] = useState<UploadedFileInfo | null>(null)
   const [rightFileInfo, setRightFileInfo] = useState<UploadedFileInfo | null>(null)
+  const lastPrettifyRef = useRef<{ side: 'left' | 'right'; prev: string } | null>(null)
 
   // Reset all states when inputs are cleared
   useEffect(() => {
@@ -166,6 +169,7 @@ export default function ComparisonView({
     const setSide = side === 'left' ? onLeftContentChange : onRightContentChange
     try {
       if (formatType === 'json') {
+        lastPrettifyRef.current = { side, prev: target }
         const valid = validateJSON(target)
         if (!valid.valid) throw new Error('Cannot format invalid JSON')
         const formatted = JSON.stringify(JSON.parse(target), null, 2)
@@ -173,6 +177,7 @@ export default function ComparisonView({
         return
       }
       if (formatType === 'xml') {
+        lastPrettifyRef.current = { side, prev: target }
         const valid = validateXML(target)
         if (!valid.valid) throw new Error('Cannot format invalid XML')
         const formatted = prettifyXML(target)
@@ -187,6 +192,45 @@ export default function ComparisonView({
       })
     }
   }, [formatType, leftContent, rightContent, onLeftContentChange, onRightContentChange])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (!lastPrettifyRef.current) return
+        e.preventDefault()
+        const { side, prev } = lastPrettifyRef.current
+        if (side === 'left') {
+          onLeftContentChange(prev)
+        } else {
+          onRightContentChange(prev)
+        }
+        lastPrettifyRef.current = null
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onLeftContentChange, onRightContentChange])
+
+  const handleCopy = useCallback(async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setSnackbar({
+        open: true,
+        message: 'Copied to clipboard',
+        severity: 'success',
+      })
+    } catch (error) {
+      console.error('Failed to copy:', error)
+      setSnackbar({
+        open: true,
+        message: 'Failed to copy to clipboard',
+        severity: 'error',
+      })
+    }
+  }, [])
 
   // Centralized worker initialization to avoid duplicate logic
   const initWorker = useCallback(() => {
@@ -564,9 +608,43 @@ export default function ComparisonView({
           </Typography>
         </Box>
         {formatType === 'json' && (
-          <MenuItem onClick={() => handleOptionChange('ignoreKeyOrder')({ target: { checked: !options.ignoreKeyOrder }} as React.ChangeEvent<HTMLInputElement>)}>
+          <>
+            <MenuItem onClick={() => handleOptionChange('ignoreKeyOrder')({ target: { checked: !options.ignoreKeyOrder }} as React.ChangeEvent<HTMLInputElement>)}>
+              <ListItemIcon sx={{ minWidth: '36px' }}>
+                {options.ignoreKeyOrder ? (
+                  <CheckBoxIcon sx={{ 
+                    '& path': {
+                      fill: 'url(#gradientCheckbox)',
+                    },
+                    color: '#7c3aed',
+                  }} />
+                ) : (
+                  <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
+                )}
+              </ListItemIcon>
+              <ListItemText>Ignore Key Order</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => handleOptionChange('ignoreArrayOrder')({ target: { checked: !options.ignoreArrayOrder }} as React.ChangeEvent<HTMLInputElement>)}>
+              <ListItemIcon sx={{ minWidth: '36px' }}>
+                {options.ignoreArrayOrder ? (
+                  <CheckBoxIcon sx={{ 
+                    '& path': {
+                      fill: 'url(#gradientCheckbox)',
+                    },
+                    color: '#7c3aed',
+                  }} />
+                ) : (
+                  <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
+                )}
+              </ListItemIcon>
+              <ListItemText>Ignore Array Order</ListItemText>
+            </MenuItem>
+          </>
+        )}
+        {formatType === 'xml' && (
+          <MenuItem onClick={() => handleOptionChange('ignoreAttributeOrder')({ target: { checked: !options.ignoreAttributeOrder }} as React.ChangeEvent<HTMLInputElement>)}>
             <ListItemIcon sx={{ minWidth: '36px' }}>
-              {options.ignoreKeyOrder ? (
+              {options.ignoreAttributeOrder ? (
                 <CheckBoxIcon sx={{ 
                   '& path': {
                     fill: 'url(#gradientCheckbox)',
@@ -577,7 +655,7 @@ export default function ComparisonView({
                 <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
               )}
             </ListItemIcon>
-            <ListItemText>Ignore Key Order</ListItemText>
+            <ListItemText>Ignore Attribute Order</ListItemText>
           </MenuItem>
         )}
         <MenuItem onClick={() => handleOptionChange('ignoreWhitespace')({ target: { checked: !options.ignoreWhitespace }} as React.ChangeEvent<HTMLInputElement>)}>
@@ -745,6 +823,13 @@ export default function ComparisonView({
                       )}
                       <IconButton
                         size="small"
+                        aria-label="copy left mobile"
+                        onClick={() => handleCopy(leftContent)}
+                      >
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
                         aria-label="clear left mobile"
                         onClick={() => handleLeftChange('')}
                       >
@@ -863,6 +948,13 @@ export default function ComparisonView({
                       <AutoFixHighIcon fontSize="small" />
                     </IconButton>
                   )}
+                  <IconButton
+                    size="small"
+                    aria-label="copy right mobile"
+                    onClick={() => handleCopy(rightContent)}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
                   <IconButton
                     size="small"
                     aria-label="clear right mobile"

@@ -171,6 +171,7 @@ export default function Home() {
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({ open: false, message: '', severity: 'error' })
   const [overlay, setOverlay] = useState<{ open: boolean; message?: string; progress?: number }>({ open: false })
+  const lastPrettifyRef = useRef<{ side: 'left' | 'right'; prev: string } | null>(null)
 
   // Expose a simple global overlay controller for other components (ComparisonView/FileDropZone)
   useEffect(() => {
@@ -302,6 +303,21 @@ export default function Home() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         handleReset()
+        return
+      }
+
+      // Ctrl+Z or Cmd+Z to undo last prettify (JSON/XML)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (lastPrettifyRef.current) {
+          e.preventDefault()
+          const { side, prev } = lastPrettifyRef.current
+          if (side === 'right') {
+            setRightContent(prev)
+          } else {
+            setLeftContent(prev)
+          }
+          lastPrettifyRef.current = null
+        }
       }
     }
 
@@ -309,7 +325,7 @@ export default function Home() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [handleReset])
+  }, [handleReset, setLeftContent, setRightContent])
 
   const handleSwap = useCallback(() => {
     const temp = leftContent
@@ -354,6 +370,8 @@ export default function Home() {
     const target = side === 'right' ? rightContent : leftContent
     try {
       if (formatType === 'json') {
+        const targetSide: 'left' | 'right' = side === 'right' ? 'right' : 'left'
+        lastPrettifyRef.current = { side: targetSide, prev: target }
         const valid = validateJSON(target)
         if (!valid.valid) throw new Error('Cannot format invalid JSON')
         const formatted = JSON.stringify(JSON.parse(target), null, 2)
@@ -362,6 +380,8 @@ export default function Home() {
         return
       }
       if (formatType === 'xml') {
+        const targetSide: 'left' | 'right' = side === 'right' ? 'right' : 'left'
+        lastPrettifyRef.current = { side: targetSide, prev: target }
         const valid = validateXML(target)
         if (!valid.valid) throw new Error('Cannot format invalid XML')
         const formatted = prettifyXML(target)
@@ -540,6 +560,15 @@ export default function Home() {
                       </IconButton>
                     </Tooltip>
                   )}
+                  <Tooltip title="Copy left content">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopy(leftContent)}
+                      aria-label="copy left"
+                    >
+                      <ContentCopyIcon />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Clear left">
                     <IconButton
                       size="small"
@@ -622,6 +651,15 @@ export default function Home() {
                       </IconButton>
                     </Tooltip>
                   )}
+                  <Tooltip title="Copy right content">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopy(rightContent)}
+                      aria-label="copy right"
+                    >
+                      <ContentCopyIcon />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Clear right">
                     <IconButton
                       size="small"

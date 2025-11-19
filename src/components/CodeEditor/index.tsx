@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo, useEffect, useMemo, useRef } from 'react'
+import React, { memo, useEffect, useRef } from 'react'
 import { Box, Typography } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { FormatType } from '@/types'
@@ -30,9 +30,7 @@ function CodeEditor({
   helperText,
 }: CodeEditorProps) {
   const theme = useTheme()
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const isLarge = useMemo(() => value.length > 300_000, [value])
 
   const getPlaceholder = () => {
     if (placeholder) return placeholder
@@ -43,17 +41,13 @@ function CodeEditor({
 
   const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const next = (e.target as HTMLTextAreaElement).value
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => onChange(next), isLarge ? 180 : 60)
+    onChange(next)
   }
 
   // Keep the uncontrolled textarea in sync when external value changes (e.g., reset)
   useEffect(() => {
     if (textareaRef.current && textareaRef.current.value !== value) {
       textareaRef.current.value = value
-    }
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [value])
 

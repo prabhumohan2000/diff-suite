@@ -60,13 +60,16 @@ describe('JSON Comparator', () => {
       expect(result.identical).toBe(true)
     })
 
-    it('should not ignore key order by default', () => {
+    it('should treat key order as significant by default', () => {
       const left = '{"a":1,"b":2}'
       const right = '{"b":2,"a":1}'
       const result = compareJSON(left, right)
-      // Even with different order, if values are same, it should be identical
-      // But the comparison logic should handle this
-      expect(result).toBeDefined()
+      expect(result.identical).toBe(false)
+      expect(
+        result.differences.some(
+          (d) => d.path === '_keyOrder' || d.path.endsWith('._keyOrder')
+        )
+      ).toBe(true)
     })
 
     it('should ignore array order when option is set', () => {

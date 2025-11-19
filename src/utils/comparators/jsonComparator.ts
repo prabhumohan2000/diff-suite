@@ -354,20 +354,11 @@ export function compareJSON(
     const left = JSON.parse(leftJSON)
     const right = JSON.parse(rightJSON)
 
-    // When ignoreKeyOrder is false and both are objects, reorder right to match left's key order
-    // This ensures line-by-line diff shows exact differences
-    let normalizedLeft = left
-    let normalizedRight = right
-    
-    if (!options.ignoreKeyOrder && 
-        left !== null && typeof left === 'object' && !Array.isArray(left) &&
-        right !== null && typeof right === 'object' && !Array.isArray(right)) {
-      // Reorder right to match left's key order for consistent line-by-line comparison
-      normalizedRight = reorderObjectKeys(right, left)
-    }
-
-    normalizedLeft = normalizeObject(normalizedLeft, options)
-    normalizedRight = normalizeObject(normalizedRight, options)
+    // Preserve natural key order when ignoreKeyOrder is false so that
+    // key-order-only changes are surfaced as differences. When
+    // ignoreKeyOrder is true, normalizeObject will sort keys.
+    const normalizedLeft = normalizeObject(left, options)
+    const normalizedRight = normalizeObject(right, options)
 
     const differences: DiffItem[] = []
     compareObjects(normalizedLeft, normalizedRight, '', options, differences)

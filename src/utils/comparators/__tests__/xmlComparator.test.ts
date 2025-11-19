@@ -53,6 +53,23 @@ describe('XML Comparator', () => {
       // Note: XML parser may normalize whitespace by default
       expect(result).toBeDefined()
     })
+
+    it('should treat attribute order as significant by default', () => {
+      const left = '<user id="1" role="admin" active="true"/>'
+      const right = '<user active="true" id="1" role="admin"/>'
+      const result = compareXML(left, right)
+      expect(result.identical).toBe(false)
+      expect(
+        result.differences.some((d) => d.path.endsWith('._attrOrder'))
+      ).toBe(true)
+    })
+
+    it('should ignore attribute order when option is set', () => {
+      const left = '<user id="1" role="admin" active="true"/>'
+      const right = '<user active="true" id="1" role="admin"/>'
+      const result = compareXML(left, right, { ignoreAttributeOrder: true })
+      expect(result.identical).toBe(true)
+    })
   })
 })
 

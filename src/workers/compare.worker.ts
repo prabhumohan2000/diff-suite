@@ -147,6 +147,26 @@ function normalizeJSONStrings(
   return value
 }
 
+// Canonicalize object key order for display when ignoreKeyOrder is enabled.
+// Arrays keep their element order, but objects inside arrays are normalized.
+function sortObjectKeysDeep(value: any): any {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sortObjectKeysDeep(item))
+  }
+
+  const out: any = {}
+  const keys = Object.keys(value).sort()
+  for (const key of keys) {
+    const v = (value as any)[key]
+    out[key] = v && typeof v === 'object' ? sortObjectKeysDeep(v) : v
+  }
+  return out
+}
+
 const processLines = (
   lines: Array<{ lineNumber: number; type: string; content?: string }>,
   oppositeLines: Array<{ lineNumber: number; type: string; content?: string }>,
@@ -238,12 +258,11 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
             caseSensitive: options?.caseSensitive !== false,
           })
 
-          // When ignoreKeyOrder is false, reorder keys on the right to match the left
-          if (!options?.ignoreKeyOrder &&
-              normLeft !== null && typeof normLeft === 'object' && !Array.isArray(normLeft) &&
-              normRight !== null && typeof normRight === 'object' && !Array.isArray(normRight)) {
-            const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
-            normRight = reorderObjectKeys(normRight, normLeft)
+          // When ignoreKeyOrder is true, sort keys on both sides so that
+          // key-order-only differences disappear from the visual diff.
+          if (options?.ignoreKeyOrder) {
+            normLeft = sortObjectKeysDeep(normLeft)
+            normRight = sortObjectKeysDeep(normRight)
           }
 
           leftText = JSON.stringify(normLeft, null, 2)
@@ -301,12 +320,11 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               caseSensitive: options?.caseSensitive !== false,
             })
 
-            // When ignoreKeyOrder is false, reorder keys on the right to match the left
-            if (!options?.ignoreKeyOrder &&
-                normLeft !== null && typeof normLeft === 'object' && !Array.isArray(normLeft) &&
-                normRight !== null && typeof normRight === 'object' && !Array.isArray(normRight)) {
-              const { reorderObjectKeys } = await import('../utils/comparators/jsonComparator')
-              normRight = reorderObjectKeys(normRight, normLeft)
+            // When ignoreKeyOrder is true, sort keys on both sides so that
+            // key-order-only differences are not shown in the line diff.
+            if (options?.ignoreKeyOrder) {
+              normLeft = sortObjectKeysDeep(normLeft)
+              normRight = sortObjectKeysDeep(normRight)
             }
 
             leftForDiff = JSON.stringify(normLeft, null, 2)

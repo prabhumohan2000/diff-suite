@@ -117,6 +117,30 @@ function compareAttributes(
   // Create maps for comparison
   const leftAttrMap = new Map(leftAttrKeys.map(k => [normalizeAttrKey(k), { key: k, value: leftAttrs[k] }]))
   const rightAttrMap = new Map(rightAttrKeys.map(k => [normalizeAttrKey(k), { key: k, value: rightAttrs[k] }]))
+
+  // When attribute order should matter, record any ordering-only change
+  if (!options.ignoreAttributeOrder) {
+    const leftOrder = leftAttrKeys.map(normalizeAttrKey)
+    const rightOrder = rightAttrKeys.map(normalizeAttrKey)
+    const sameLength = leftOrder.length === rightOrder.length
+    let sameOrder = sameLength
+    if (sameLength) {
+      for (let i = 0; i < leftOrder.length; i++) {
+        if (leftOrder[i] !== rightOrder[i]) {
+          sameOrder = false
+          break
+        }
+      }
+    }
+    if (!sameOrder) {
+      differences.push({
+        type: 'modified',
+        path: `${path}._attrOrder`,
+        oldValue: leftAttrKeys.map(k => k.substring(2)),
+        newValue: rightAttrKeys.map(k => k.substring(2)),
+      })
+    }
+  }
   
   // Check for removed and modified attributes
   for (const [normalizedKey, leftData] of leftAttrMap) {
