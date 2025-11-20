@@ -29,6 +29,13 @@ import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import SettingsIcon from '@mui/icons-material/Settings'
 
 const STORAGE_KEY = 'diff-suite-state'
+const defaultComparisonOptions: ComparisonOptions = {
+  ignoreKeyOrder: false,
+  ignoreArrayOrder: false,
+  caseSensitive: true,
+  ignoreWhitespace: false,
+  ignoreAttributeOrder: false,
+}
 
 export default function Home() {
   // Initialize mode tabs from localStorage so refreshes land
@@ -53,12 +60,17 @@ export default function Home() {
   })
   const [leftContent, setLeftContent] = useState('')
   const [rightContent, setRightContent] = useState('')
-  const [options, setOptions] = useState<ComparisonOptions>({
-    ignoreKeyOrder: false,
-    ignoreArrayOrder: false,
-    caseSensitive: true,
-    ignoreWhitespace: false,
-    ignoreAttributeOrder: false,
+  const [options, setOptions] = useState<ComparisonOptions>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedOpt = window.localStorage.getItem('diffsuite_options')
+        if (savedOpt) {
+          const parsed = JSON.parse(savedOpt)
+          return { ...defaultComparisonOptions, ...parsed }
+        }
+      } catch {}
+    }
+    return { ...defaultComparisonOptions }
   })
   const [enableStorage, setEnableStorage] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -67,6 +79,7 @@ export default function Home() {
     }
     return true
   })
+  const pendingOptionsRestoreRef = useRef(false)
 
   // Load content/options from persistent storage on mount when enabled.
   // Mode tabs are restored via the lazy useState initializers above.
@@ -83,7 +96,13 @@ export default function Home() {
         if (enableStorage) {
           if (savedLeft) setLeftContent(savedLeft)
           if (savedRight) setRightContent(savedRight)
-          if (savedOpt) setOptions(JSON.parse(savedOpt))
+          if (savedOpt) {
+            try {
+              const parsed = JSON.parse(savedOpt)
+              pendingOptionsRestoreRef.current = true
+              setOptions((prev) => ({ ...defaultComparisonOptions, ...prev, ...parsed }))
+            } catch {}
+          }
         }
       } catch (e) {
         console.error('Failed to restore from sessionStorage', e)
@@ -96,6 +115,12 @@ export default function Home() {
   // Mode tabs (format/action) are always saved; content/options only when enabled,
   // and cleared when both sides are empty.
   useEffect(() => {
+    if (pendingOptionsRestoreRef.current) {
+      // Allow restored options to render before persisting again
+      pendingOptionsRestoreRef.current = false
+      return
+    }
+
     if (typeof window !== 'undefined') {
       try {
         const storage = window.localStorage
@@ -103,6 +128,9 @@ export default function Home() {
         storage.setItem('diffsuite_action_type', actionType)
 
         if (enableStorage) {
+          // Always persist comparison options so toggles survive refresh even when content is empty
+          storage.setItem('diffsuite_options', JSON.stringify(options))
+
           const hasContent = !!leftContent || !!rightContent
           if (hasContent) {
             if (leftContent) storage.setItem('diffsuite_input_1', leftContent)
@@ -110,12 +138,9 @@ export default function Home() {
 
             if (rightContent) storage.setItem('diffsuite_input_2', rightContent)
             else storage.removeItem('diffsuite_input_2')
-
-            storage.setItem('diffsuite_options', JSON.stringify(options))
           } else {
             storage.removeItem('diffsuite_input_1')
             storage.removeItem('diffsuite_input_2')
-            storage.removeItem('diffsuite_options')
           }
         }
       } catch (e) {
@@ -136,13 +161,7 @@ export default function Home() {
     }
 
     // Reset comparison options and clear editors when format changes
-    setOptions({
-      ignoreKeyOrder: false,
-      ignoreArrayOrder: false,
-      ignoreAttributeOrder: false,
-      caseSensitive: true,
-      ignoreWhitespace: false,
-    })
+    setOptions({ ...defaultComparisonOptions })
     setLeftContent('')
     setRightContent('')
 
@@ -425,13 +444,7 @@ export default function Home() {
             }
             setLeftContent('')
             setRightContent('')
-            setOptions({
-              ignoreKeyOrder: false,
-              ignoreArrayOrder: false,
-              caseSensitive: true,
-              ignoreWhitespace: false,
-              ignoreAttributeOrder: false,
-            })
+            setOptions({ ...defaultComparisonOptions })
             setSnackbar({ open: true, message: 'Auto-save disabled - Data will clear on refresh', severity: 'warning' })
           } else {
             setSnackbar({ open: true, message: 'Auto-save enabled - Your work will be saved', severity: 'success' })
