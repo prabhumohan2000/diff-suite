@@ -363,6 +363,22 @@ export function compareJSON(
     const differences: DiffItem[] = []
     compareObjects(normalizedLeft, normalizedRight, '', options, differences)
 
+    // If structures match but whitespace should be respected, fall back to raw diff
+    if (differences.length === 0 && options.ignoreWhitespace === false) {
+      const rawDifferences = compareRawTextJSON(leftJSON, rightJSON)
+      if (rawDifferences.length > 0) {
+        return {
+          identical: false,
+          differences: rawDifferences,
+          summary: {
+            added: rawDifferences.filter((d) => d.type === 'added').length,
+            removed: rawDifferences.filter((d) => d.type === 'removed').length,
+            modified: rawDifferences.filter((d) => d.type === 'modified').length,
+          },
+        }
+      }
+    }
+
     return {
       identical: differences.length === 0,
       differences,

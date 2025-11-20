@@ -141,7 +141,7 @@ a {
   }
   
   .glass-card-dark {
-    background: rgba(30, 20, 50, 0.95);
+    background: rgba(255, 255, 255, 0.95);
     box-shadow: 0 8px 32px rgba(124, 58, 237, 0.2);
     border-radius: 16px;
     border: 1px solid rgba(124, 58, 237, 0.1);

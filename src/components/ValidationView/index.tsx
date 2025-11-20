@@ -195,48 +195,6 @@ export default function ValidationView({
             >
               <AlertTitle className="font-bold">Invalid {formatType.toUpperCase()}</AlertTitle>
               {result.error?.message || 'Validation failed'}
-              {result.error && (result.error.line || result.error.column) && (
-                <Accordion sx={{ mt: 2, borderRadius: '8px', '&:before': { display: 'none' } }}>
-                  <AccordionSummary 
-                    expandIcon={<ExpandMoreIcon />}
-                    sx={{
-                      borderRadius: '8px',
-                      '&:hover': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                      },
-                    }}
-                  >
-                    <Typography variant="body2" className="font-semibold">Error Details</Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Stack spacing={1.5}>
-                      {result.error.line && (
-                        <Chip
-                          label={`Line: ${result.error.line}`}
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      )}
-                      {result.error.column && (
-                        <Chip
-                          label={`Column: ${result.error.column}`}
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          sx={{ fontWeight: 600 }}
-                        />
-                      )}
-                      {result.error.message && (
-                        <Typography variant="body2" className="mt-2">
-                          <strong>Message:</strong> {result.error.message}
-                        </Typography>
-                      )}
-                    </Stack>
-                  </AccordionDetails>
-                </Accordion>
-              )}
             </Alert>
           )}
         </Box>

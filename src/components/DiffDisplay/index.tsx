@@ -82,61 +82,6 @@ export default function DiffDisplay({
     
     return (
       <Box>
-        <Paper 
-          elevation={0}
-          className="glass-card dark:glass-card-dark p-3 mb-4 smooth-transition"
-        >
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip
-              label="Added"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.added, 
-                border: `1px solid ${colors.addedBorder}`,
-                color: colors.addedText,
-                fontWeight: 600,
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-            />
-            <Chip
-              label="Removed"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.removed, 
-                border: `1px solid ${colors.removedBorder}`,
-                color: colors.removedText,
-                fontWeight: 600,
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-            />
-            <Chip
-              label="Modified"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.modified, 
-                border: `1px dashed ${colors.modifiedBorder}`,
-                color: colors.modifiedText,
-                fontWeight: 600,
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-            />
-            <Typography
-              variant="caption"
-              sx={{ ml: 1, opacity: 0.8 }}
-            >
-              Modified = value changed (old vs new)
-            </Typography>
-          </Stack>
-        </Paper>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
             <VirtualPaper title="Original text">

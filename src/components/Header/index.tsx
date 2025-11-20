@@ -13,15 +13,17 @@ import {
 import CodeIcon from '@mui/icons-material/Code'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
-import DifferenceIcon from '@mui/icons-material/Difference' // ⬅️ updated icon import
+import DifferenceIcon from '@mui/icons-material/Difference'
+import SettingsIcon from '@mui/icons-material/Settings' // ⬅️ updated icon import
 import { useThemeMode } from '@/components/ThemeProvider'
 
 interface HeaderProps {
   enableStorage?: boolean
   onStorageToggle?: (enabled: boolean) => void
+  onSettingsClick?: () => void
 }
 
-export default function Header({ enableStorage = true, onStorageToggle }: HeaderProps) {
+export default function Header({ enableStorage = true, onStorageToggle, onSettingsClick }: HeaderProps) {
   const trigger = useScrollTrigger({
     disableHysteresis: true,
     threshold: 0,
@@ -70,6 +72,30 @@ export default function Header({ enableStorage = true, onStorageToggle }: Header
           <Box className="flex-shrink-0 w-[72px] sm:w-[88px]" /> {/* Spacer for alignment */}
 
           <Box className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <Tooltip title="Comparison settings">
+              <span>
+                <IconButton
+                  onClick={onSettingsClick}
+                  sx={{
+                    color: 'white',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      transform: 'scale(1.1)',
+                    },
+                    '&:active': {
+                      transform: 'scale(0.95)',
+                    },
+                    display: { xs: 'inline-flex', sm: 'none' },
+                  }}
+                  aria-label="open settings"
+                  size="small"
+                  className="!p-2"
+                >
+                  <SettingsIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Tooltip title={enableStorage ? 'Disable browser session' : 'Enable browser session'}>
               <IconButton
                 onClick={() => onStorageToggle?.(!enableStorage)}
@@ -123,3 +149,4 @@ export default function Header({ enableStorage = true, onStorageToggle }: Header
     </Slide>
   )
 }
+

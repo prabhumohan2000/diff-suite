@@ -244,31 +244,35 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
       if (isLarge) {
         let leftText = left
         let rightText = right
-        try {
-          const leftParsed = JSON.parse(leftText)
-          const rightParsed = JSON.parse(rightText)
+        const shouldNormalizeWhitespace = !!options?.ignoreWhitespace
+        const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
+        if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
+          try {
+            const leftParsed = JSON.parse(leftText)
+            const rightParsed = JSON.parse(rightText)
 
-          // Normalize all string values based on whitespace/case options
-          let normLeft = normalizeJSONStrings(leftParsed, {
-            ignoreWhitespace: !!options?.ignoreWhitespace,
-            caseSensitive: options?.caseSensitive !== false,
-          })
-          let normRight = normalizeJSONStrings(rightParsed, {
-            ignoreWhitespace: !!options?.ignoreWhitespace,
-            caseSensitive: options?.caseSensitive !== false,
-          })
+            // Normalize all string values based on whitespace/case options
+            let normLeft = normalizeJSONStrings(leftParsed, {
+              ignoreWhitespace: !!options?.ignoreWhitespace,
+              caseSensitive: options?.caseSensitive !== false,
+            })
+            let normRight = normalizeJSONStrings(rightParsed, {
+              ignoreWhitespace: !!options?.ignoreWhitespace,
+              caseSensitive: options?.caseSensitive !== false,
+            })
 
-          // When ignoreKeyOrder is true, sort keys on both sides so that
-          // key-order-only differences disappear from the visual diff.
-          if (options?.ignoreKeyOrder) {
-            normLeft = sortObjectKeysDeep(normLeft)
-            normRight = sortObjectKeysDeep(normRight)
+            // When ignoreKeyOrder is true, sort keys on both sides so that
+            // key-order-only differences disappear from the visual diff.
+            if (options?.ignoreKeyOrder) {
+              normLeft = sortObjectKeysDeep(normLeft)
+              normRight = sortObjectKeysDeep(normRight)
+            }
+
+            leftText = JSON.stringify(normLeft, null, 2)
+            rightText = JSON.stringify(normRight, null, 2)
+          } catch {
+            // If normalization fails, fall back to raw text comparison below.
           }
-
-          leftText = JSON.stringify(normLeft, null, 2)
-          rightText = JSON.stringify(normRight, null, 2)
-        } catch {
-          // If normalization fails, fall back to raw text comparison below.
         }
 
         const diffOptions = {
@@ -306,30 +310,36 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         try {
           let leftForDiff = left
           let rightForDiff = right
-          try {
-            const leftParsed = JSON.parse(left)
-            const rightParsed = JSON.parse(right)
 
-            // Normalize string values according to whitespace/case options
-            let normLeft = normalizeJSONStrings(leftParsed, {
-              ignoreWhitespace: !!options?.ignoreWhitespace,
-              caseSensitive: options?.caseSensitive !== false,
-            })
-            let normRight = normalizeJSONStrings(rightParsed, {
-              ignoreWhitespace: !!options?.ignoreWhitespace,
-              caseSensitive: options?.caseSensitive !== false,
-            })
+          const shouldNormalizeWhitespace = !!options?.ignoreWhitespace
+          const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
+          if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
+            try {
+              const leftParsed = JSON.parse(left)
+              const rightParsed = JSON.parse(right)
 
-            // When ignoreKeyOrder is true, sort keys on both sides so that
-            // key-order-only differences are not shown in the line diff.
-            if (options?.ignoreKeyOrder) {
-              normLeft = sortObjectKeysDeep(normLeft)
-              normRight = sortObjectKeysDeep(normRight)
+              let normLeft = normalizeJSONStrings(leftParsed, {
+                ignoreWhitespace: !!options?.ignoreWhitespace,
+                caseSensitive: options?.caseSensitive !== false,
+              })
+              let normRight = normalizeJSONStrings(rightParsed, {
+                ignoreWhitespace: !!options?.ignoreWhitespace,
+                caseSensitive: options?.caseSensitive !== false,
+              })
+
+              if (options?.ignoreKeyOrder) {
+                normLeft = sortObjectKeysDeep(normLeft)
+                normRight = sortObjectKeysDeep(normRight)
+              }
+
+              leftForDiff = JSON.stringify(normLeft, null, 2)
+              rightForDiff = JSON.stringify(normRight, null, 2)
+            } catch {
+              // keep raw strings if normalization fails
+              leftForDiff = left
+              rightForDiff = right
             }
-
-            leftForDiff = JSON.stringify(normLeft, null, 2)
-            rightForDiff = JSON.stringify(normRight, null, 2)
-          } catch {}
+          }
 
           const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }

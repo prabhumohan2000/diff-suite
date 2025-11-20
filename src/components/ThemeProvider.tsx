@@ -22,6 +22,19 @@ export function useThemeMode() {
 }
 
 function getTheme(mode: ThemeMode): Theme {
+  const alertLightColors = {
+    error: {
+      bg: '#fdecea',
+      color: '#5f2120',
+      icon: '#d32f2f',
+    },
+    success: {
+      bg: '#edf7ed',
+      color: '#1e4620',
+      icon: '#2e7d32',
+    },
+  }
+
   return createTheme({
     palette: {
       mode,
@@ -56,6 +69,22 @@ function getTheme(mode: ThemeMode): Theme {
         complex: 375,
         enteringScreen: 225,
         leavingScreen: 195,
+      },
+    },
+    components: {
+      MuiAlert: {
+        styleOverrides: {
+          standardError: {
+            backgroundColor: alertLightColors.error.bg,
+            color: alertLightColors.error.color,
+            '& .MuiAlert-icon': { color: alertLightColors.error.icon },
+          },
+          standardSuccess: {
+            backgroundColor: alertLightColors.success.bg,
+            color: alertLightColors.success.color,
+            '& .MuiAlert-icon': { color: alertLightColors.success.icon },
+          },
+        },
       },
     },
   })

@@ -160,21 +160,9 @@ export default function Home() {
       setActionType('compare')
     }
 
-    // Reset comparison options and clear editors when format changes
-    setOptions({ ...defaultComparisonOptions })
-    setLeftContent('')
-    setRightContent('')
-
-    // Also clear persisted content for the previous format to avoid confusion
+    // Reset any existing results when format changes
     try {
       if (typeof window !== 'undefined') {
-        const storages = [window.localStorage, window.sessionStorage]
-        for (const s of storages) {
-          try {
-            s.removeItem('diffsuite_input_1')
-            s.removeItem('diffsuite_input_2')
-          } catch {}
-        }
         // Reset any existing results
         // @ts-ignore
         window.comparisonViewResetRef?.current?.()
@@ -448,6 +436,15 @@ export default function Home() {
             setSnackbar({ open: true, message: 'Auto-save disabled - Data will clear on refresh', severity: 'warning' })
           } else {
             setSnackbar({ open: true, message: 'Auto-save enabled - Your work will be saved', severity: 'success' })
+          }
+        }}
+        onSettingsClick={() => {
+          if (actionType !== 'compare') return
+          if (typeof window !== 'undefined') {
+            try {
+              // @ts-ignore
+              window.comparisonViewOpenSettings?.(null)
+            } catch {}
           }
         }}
       />
