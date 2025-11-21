@@ -154,6 +154,9 @@ export default function Home() {
     if (newFormat === formatType) return
 
     setFormatType(newFormat)
+    setOptions({ ...defaultComparisonOptions })
+    setLeftContent('')
+    setRightContent('')
 
     // Text mode only supports compare action
     if (newFormat === 'text') {
