@@ -101,36 +101,6 @@ export default function DiffDisplay({
   if (formatType === 'text' && result.leftLines && result.rightLines) {
     return (
       <Box>
-        <Paper elevation={1} sx={{ p: 1, mb: 2 }}>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip
-              label="Added"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.added, 
-                border: `1px solid ${colors.addedBorder}`,
-                color: colors.addedText,
-              }}
-            />
-            <Chip
-              label="Removed"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.removed, 
-                border: `1px solid ${colors.removedBorder}`,
-                color: colors.removedText,
-              }}
-            />
-            <Chip
-              label="Modified"
-              size="small"
-              sx={{ 
-                backgroundColor: colors.modified, 
-                border: `1px solid ${colors.modifiedBorder}`,
-              }}
-            />
-          </Stack>
-        </Paper>
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <Paper
