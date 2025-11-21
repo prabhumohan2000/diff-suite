@@ -27,14 +27,39 @@ import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
 import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import SettingsIcon from '@mui/icons-material/Settings'
-
-const STORAGE_KEY = 'diff-suite-state'
 const defaultComparisonOptions: ComparisonOptions = {
   ignoreKeyOrder: false,
   ignoreArrayOrder: false,
   caseSensitive: true,
   ignoreWhitespace: false,
   ignoreAttributeOrder: false,
+}
+
+const formatValues: FormatType[] = ['json', 'xml', 'text']
+const actionValues: ActionType[] = ['validate', 'compare']
+
+const getInputStorageKey = (side: 'left' | 'right', format: FormatType, action: ActionType) =>
+  `diffsuite_input_${side === 'left' ? '1' : '2'}_${format}_${action}`
+
+const loadStoredInputs = (storage: Storage, format: FormatType, action: ActionType) => {
+  const left = storage.getItem(getInputStorageKey('left', format, action)) || ''
+  const right = action === 'compare' ? storage.getItem(getInputStorageKey('right', format, action)) || '' : ''
+  return { left, right }
+}
+
+const clearStoredInputsForMode = (storage: Storage, format: FormatType, action: ActionType) => {
+  try {
+    storage.removeItem(getInputStorageKey('left', format, action))
+    storage.removeItem(getInputStorageKey('right', format, action))
+  } catch {}
+}
+
+const clearAllStoredInputs = (storage: Storage) => {
+  for (const format of formatValues) {
+    for (const action of actionValues) {
+      clearStoredInputsForMode(storage, format, action)
+    }
+  }
 }
 
 export default function Home() {
@@ -80,6 +105,7 @@ export default function Home() {
     return true
   })
   const pendingOptionsRestoreRef = useRef(false)
+  const skipPersistRef = useRef(false)
 
   // Load content/options from persistent storage on mount when enabled.
   // Mode tabs are restored via the lazy useState initializers above.
@@ -88,14 +114,10 @@ export default function Home() {
       try {
         const storage = window.localStorage
 
-        const savedLeft = storage.getItem('diffsuite_input_1') || ''
-        const savedRight = storage.getItem('diffsuite_input_2') || ''
         const savedOpt = storage.getItem('diffsuite_options')
 
         // Restore content/settings only when storage is enabled
         if (enableStorage) {
-          if (savedLeft) setLeftContent(savedLeft)
-          if (savedRight) setRightContent(savedRight)
           if (savedOpt) {
             try {
               const parsed = JSON.parse(savedOpt)
@@ -111,10 +133,37 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableStorage])
 
+  // Load content specific to the current mode (format + action).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const storage = window.localStorage
+      const { left, right } = enableStorage ? loadStoredInputs(storage, formatType, actionType) : { left: '', right: '' }
+      skipPersistRef.current = true
+      setLeftContent(left)
+      setRightContent(actionType === 'compare' ? right : '')
+      // Reset any existing results when mode changes
+      try {
+        // @ts-ignore
+        window.comparisonViewResetRef?.current?.()
+        // @ts-ignore
+        window.validationViewResetRef?.current?.()
+      } catch {}
+    } catch (e) {
+      console.error('Failed to restore mode-specific content', e)
+    } finally {
+      // Allow subsequent saves once content is restored
+      skipPersistRef.current = false
+    }
+  }, [formatType, actionType, enableStorage])
+
   // Save state to localStorage.
   // Mode tabs (format/action) are always saved; content/options only when enabled,
   // and cleared when both sides are empty.
   useEffect(() => {
+    if (skipPersistRef.current) return
+
     if (pendingOptionsRestoreRef.current) {
       // Allow restored options to render before persisting again
       pendingOptionsRestoreRef.current = false
@@ -132,15 +181,22 @@ export default function Home() {
           storage.setItem('diffsuite_options', JSON.stringify(options))
 
           const hasContent = !!leftContent || !!rightContent
-          if (hasContent) {
-            if (leftContent) storage.setItem('diffsuite_input_1', leftContent)
-            else storage.removeItem('diffsuite_input_1')
+          const leftKey = getInputStorageKey('left', formatType, actionType)
+          const rightKey = getInputStorageKey('right', formatType, actionType)
 
-            if (rightContent) storage.setItem('diffsuite_input_2', rightContent)
-            else storage.removeItem('diffsuite_input_2')
+          if (hasContent) {
+            if (leftContent) storage.setItem(leftKey, leftContent)
+            else storage.removeItem(leftKey)
+
+            if (actionType === 'compare') {
+              if (rightContent) storage.setItem(rightKey, rightContent)
+              else storage.removeItem(rightKey)
+            } else {
+              storage.removeItem(rightKey)
+            }
           } else {
-            storage.removeItem('diffsuite_input_1')
-            storage.removeItem('diffsuite_input_2')
+            storage.removeItem(leftKey)
+            storage.removeItem(rightKey)
           }
         }
       } catch (e) {
@@ -153,6 +209,7 @@ export default function Home() {
   const handleFormatChange = useCallback((newFormat: FormatType) => {
     if (newFormat === formatType) return
 
+    skipPersistRef.current = true
     setFormatType(newFormat)
 
     // Text mode only supports compare action
@@ -173,8 +230,18 @@ export default function Home() {
   }, [formatType])
 
   const handleActionChange = useCallback((newAction: ActionType) => {
+    if (newAction === actionType) return
+    skipPersistRef.current = true
     setActionType(newAction)
-  }, [])
+    try {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewResetRef?.current?.()
+        // @ts-ignore
+        window.validationViewResetRef?.current?.()
+      }
+    } catch {}
+  }, [actionType])
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({ open: false, message: '', severity: 'error' })
   const [overlay, setOverlay] = useState<{ open: boolean; message?: string; progress?: number }>({ open: false })
@@ -280,6 +347,8 @@ export default function Home() {
         const storages = [window.localStorage, window.sessionStorage]
         for (const s of storages) {
           try {
+            clearStoredInputsForMode(s, formatType, actionType)
+            // Clean up legacy keys for current mode
             s.removeItem('diffsuite_input_1')
             s.removeItem('diffsuite_input_2')
           } catch {}
@@ -425,6 +494,8 @@ export default function Home() {
             const storages = [window.localStorage, window.sessionStorage]
             for (const s of storages) {
               try {
+                clearAllStoredInputs(s)
+                // Clean up legacy keys to avoid stale data
                 s.removeItem('diffsuite_input_1')
                 s.removeItem('diffsuite_input_2')
                 s.removeItem('diffsuite_options')
