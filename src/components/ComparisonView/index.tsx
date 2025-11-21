@@ -30,6 +30,7 @@ import FileUploadIcon from '@mui/icons-material/FileUpload'
 import DownloadIcon from '@mui/icons-material/Download'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank'
 import CheckBoxIcon from '@mui/icons-material/CheckBox'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
@@ -365,6 +366,16 @@ export default function ComparisonView({
     onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })
   }, [onOptionsChange, options])
 
+  const handleSwapMobile = useCallback(() => {
+    if (!leftContent && !rightContent) return
+    setResult(null)
+    setShowResults(false)
+    onLeftContentChange(rightContent)
+    onRightContentChange(leftContent)
+    setLeftFileInfo(rightFileInfo)
+    setRightFileInfo(leftFileInfo)
+  }, [leftContent, rightContent, onLeftContentChange, onRightContentChange, leftFileInfo, rightFileInfo])
+
   // When user edits either textarea, hide results to avoid heavy recompute
   // Note: We don't clear file info here - it should persist even if user edits the content
   const handleLeftChange = useCallback((content: string) => {
@@ -507,7 +518,40 @@ export default function ComparisonView({
           </defs>
         </svg>
       </Menu>
-
+    <Box className="mb-3 flex justify-center items-center gap-2">  
+        <IconButton
+          sx={{
+            display: { xs: 'inline-flex', md: 'none' },
+            backgroundColor: 'rgba(124, 58, 237, 0.08)',
+            border: '1px solid rgba(124, 58, 237, 0.2)',
+            '&:hover': {
+              backgroundColor: 'rgba(124, 58, 237, 0.16)',
+            },
+          }}
+          aria-label="comparison settings"
+          onClick={(e) => {
+            setAnchorEl(e.currentTarget)
+            setAnchorPosition(null)
+          }}
+        >
+          <SettingsIcon />
+        </IconButton>
+        <IconButton
+          sx={{
+            display: { xs: 'inline-flex', md: 'none' },
+            backgroundColor: 'rgba(124, 58, 237, 0.08)',
+            border: '1px solid rgba(124, 58, 237, 0.2)',
+            '&:hover': {
+              backgroundColor: 'rgba(124, 58, 237, 0.16)',
+            },
+          }}
+          aria-label="swap content"
+          disabled={!leftContent.trim() || !rightContent.trim()}
+          onClick={handleSwapMobile}
+        >
+          <SwapHorizIcon />
+        </IconButton>
+    </Box>
       <Box className="mb-3 flex justify-center items-center gap-2">
         <Button
           variant="contained"
@@ -708,7 +752,7 @@ export default function ComparisonView({
                 mt: 1,
                 mb: 1,
                 gap: 1,
-                justifyContent: 'flex-end',
+                justifyContent: 'flex-start',
               }}
             >
               <IconButton
