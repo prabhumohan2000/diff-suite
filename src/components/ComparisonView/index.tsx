@@ -149,6 +149,20 @@ export default function ComparisonView({
     setAnchorPosition(null);
   };
 
+  const computeAnchorPosition = useCallback((anchor?: HTMLElement | null) => {
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect()
+      return {
+        top: rect.bottom + 8,
+        left: rect.left + rect.width / 2,
+      }
+    }
+    return {
+      top: window.innerHeight * 0.2,
+      left: window.innerWidth * 0.5,
+    }
+  }, [])
+
   const isLargeContent = useCallback((content: string) => {
     return content.length > 10_000 // Consider content large if over 50KB
   }, [])
@@ -301,20 +315,8 @@ export default function ComparisonView({
     if (typeof window !== 'undefined') {
       // @ts-ignore
       window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
-        if (anchor) {
-          setAnchorEl(anchor)
-          const rect = anchor.getBoundingClientRect()
-          setAnchorPosition({
-            top: rect.bottom + 8,
-            left: rect.right - 8,
-          })
-        } else {
-          setAnchorEl(null)
-          setAnchorPosition({
-            top: window.innerHeight * 0.2,
-            left: window.innerWidth * 0.5,
-          })
-        }
+        setAnchorEl(null)
+        setAnchorPosition(computeAnchorPosition(anchor))
       }
     }
     return () => {
@@ -323,7 +325,7 @@ export default function ComparisonView({
         window.comparisonViewOpenSettings = undefined
       }
     }
-  }, [])
+  }, [computeAnchorPosition])
 
   const handleCompare = useCallback(() => {
     setLoading(true)
@@ -530,8 +532,8 @@ export default function ComparisonView({
           }}
           aria-label="comparison settings"
           onClick={(e) => {
-            setAnchorEl(e.currentTarget)
-            setAnchorPosition(null)
+            setAnchorEl(null)
+            setAnchorPosition(computeAnchorPosition(e.currentTarget))
           }}
         >
           <SettingsIcon />

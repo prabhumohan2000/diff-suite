@@ -41,6 +41,14 @@ export function compareTextEnhanced(
   rightText: string,
   options: ComparisonOptions = {}
 ): ComparisonResult {
+  const splitLinesPreserveBlanks = (value: string) => {
+    const parts = value.split('\n')
+    if (parts.length && parts[parts.length - 1] === '') {
+      parts.pop() // drop trailing empty from terminal newline only
+    }
+    return parts
+  }
+
   // Prepare text for diffing based on options
   const textForDiff = (text: string) => {
     let result = text
@@ -79,18 +87,20 @@ export function compareTextEnhanced(
 
     if (change.removed && nextChange && nextChange.added) {
       // This is a modification (removed followed by added)
-      const removedLines = change.value.split('\n').filter(l => l)
-      const addedLines = nextChange.value.split('\n').filter(l => l)
+      const removedLines = splitLinesPreserveBlanks(change.value)
+      const addedLines = splitLinesPreserveBlanks(nextChange.value)
       
       const maxLines = Math.max(removedLines.length, addedLines.length)
       for (let j = 0; j < maxLines; j++) {
         const removedLine = removedLines[j]
         const addedLine = addedLines[j]
+        const hasRemoved = removedLine !== undefined
+        const hasAdded = addedLine !== undefined
 
-        if (removedLine && addedLine) {
+        if (hasRemoved && hasAdded) {
           // Modified line - show word-level diff
-          const removedForDiff = textForDiff(removedLine)
-          const addedForDiff = textForDiff(addedLine)
+          const removedForDiff = textForDiff(removedLine || '')
+          const addedForDiff = textForDiff(addedLine || '')
           const wordDiffs = diffWords(removedForDiff, addedForDiff, { ignoreWhitespace: false })
           const changes: TextDiffChange[] = wordDiffs.map(w => ({
             type: w.added ? 'added' : w.removed ? 'removed' : 'unchanged',
@@ -100,28 +110,28 @@ export function compareTextEnhanced(
           leftDiffLines.push({
             lineNumber: leftLineNum++,
             type: 'removed',
-            content: removedLine,
+            content: removedLine || '',
             changes: changes.filter(c => c.type !== 'added'),
           })
           rightDiffLines.push({
             lineNumber: rightLineNum++,
             type: 'added',
-            content: addedLine,
+            content: addedLine || '',
             changes: changes.filter(c => c.type !== 'removed'),
           })
           modified++
-        } else if (removedLine) {
+        } else if (hasRemoved) {
           leftDiffLines.push({
             lineNumber: leftLineNum++,
             type: 'removed',
-            content: removedLine,
+            content: removedLine || '',
           })
           removed++
-        } else if (addedLine) {
+        } else if (hasAdded) {
           rightDiffLines.push({
             lineNumber: rightLineNum++,
             type: 'added',
-            content: addedLine,
+            content: addedLine || '',
           })
           added++
         }
@@ -129,7 +139,7 @@ export function compareTextEnhanced(
       i += 2 // Skip next change as we've processed it
     } else if (change.removed) {
       // Removed only
-      const lines = change.value.split('\n').filter(l => l)
+      const lines = splitLinesPreserveBlanks(change.value)
       for (const line of lines) {
         leftDiffLines.push({
           lineNumber: leftLineNum++,
@@ -141,7 +151,7 @@ export function compareTextEnhanced(
       i++
     } else if (change.added) {
       // Added only
-      const lines = change.value.split('\n').filter(l => l)
+      const lines = splitLinesPreserveBlanks(change.value)
       for (const line of lines) {
         rightDiffLines.push({
           lineNumber: rightLineNum++,
@@ -153,7 +163,7 @@ export function compareTextEnhanced(
       i++
     } else {
       // Unchanged
-      const lines = change.value.split('\n').filter(l => l)
+      const lines = splitLinesPreserveBlanks(change.value)
       for (const line of lines) {
         leftDiffLines.push({
           lineNumber: leftLineNum++,

@@ -41,7 +41,7 @@ function SegmentedControlInner<V extends string>({ value, options, onChange }: S
           disabled={!!opt.disabled}
           onClick={() => handleClick(opt.value)}
           style={{
-            cursor: opt.disabled ? 'not-allowed' : 'pointer',
+            cursor: opt.disabled ? 'not-allowed' : 'default',
             padding: '8px 14px',
             border: 'none',
             outline: 'none',

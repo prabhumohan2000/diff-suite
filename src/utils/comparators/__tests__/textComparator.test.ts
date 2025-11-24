@@ -60,6 +60,15 @@ describe('Text Comparator', () => {
       const result = compareTextEnhanced(left, right, { ignoreWhitespace: true })
       expect(result.identical).toBe(true)
     })
+
+    it('should treat blank lines as meaningful when whitespace is not ignored', () => {
+      const left = 'A\n\nB'
+      const right = 'A\nB'
+      const result = compareTextEnhanced(left, right, { ignoreWhitespace: false })
+      expect(result.identical).toBe(false)
+      expect(result.summary.removed).toBe(1)
+      expect(result.leftLines.some((l) => l.type === 'removed' && l.content === '')).toBe(true)
+    })
   })
 })
 

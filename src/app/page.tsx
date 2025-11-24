@@ -205,8 +205,10 @@ export default function Home() {
     (side: 'left' | 'right', event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      // Max allowed file size in bytes (2 MB)
-      const MAX_FILE_SIZE = 2 * 1024 * 1024
+      // Max allowed file size in bytes (2 MB) with a small buffer for OS rounding
+      const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
+      const SIZE_BUFFER = 1024 // allow slight rounding difference (~1 KiB)
+      const MAX_FILE_SIZE = MAX_FILE_SIZE_BYTES + SIZE_BUFFER
 
       const accepted = formatType === 'json'
         ? ['.json']
@@ -237,7 +239,7 @@ export default function Home() {
       if (file.size > MAX_FILE_SIZE) {
         setSnackbar({
           open: true,
-          message: `File is too large (${(file.size / (1024 * 1024)).toFixed(2)} MB). Max allowed size is ${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)} MB.`,
+          message: `File is too large (${(file.size / (1024 * 1024)).toFixed(2)} MB). Max allowed size is ${(MAX_FILE_SIZE_BYTES / (1024 * 1024)).toFixed(0)} MB.`,
           severity: 'error',
         });
         event.target.value = '';
