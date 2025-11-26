@@ -36,6 +36,8 @@ function postProgress(id: string, progress?: number, message?: string) {
   self.postMessage(out)
 }
 
+const normalizeLineEndings = (s: string) => (s ?? '').replace(/\r\n?/g, '\n')
+
 // Progressive diff for large inputs: chunk by lines and yield progress
 function computeDiffProgressive(
   left: string,
@@ -44,8 +46,8 @@ function computeDiffProgressive(
   onProgress: (p: number) => void
 ) {
   return new Promise<DiffResult>((resolve) => {
-    const leftLines = (left ?? '').split('\n')
-    const rightLines = (right ?? '').split('\n')
+    const leftLines = normalizeLineEndings(left ?? '').split('\n')
+    const rightLines = normalizeLineEndings(right ?? '').split('\n')
     const total = Math.max(1, leftLines.length + rightLines.length)
 
     // Pre-normalize once to avoid repeated regex and lowercasing in the hot loop
@@ -244,7 +246,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
       if (isLarge) {
         let leftText = left
         let rightText = right
-        const shouldNormalizeWhitespace = !!options?.ignoreWhitespace
+        const ignoreWhitespaceForJSON = options?.formattingSensitive ? false : options?.ignoreWhitespace !== false
+        const shouldNormalizeWhitespace = ignoreWhitespaceForJSON
         const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
         if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
           try {
@@ -253,11 +256,11 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
 
             // Normalize all string values based on whitespace/case options
             let normLeft = normalizeJSONStrings(leftParsed, {
-              ignoreWhitespace: !!options?.ignoreWhitespace,
+              ignoreWhitespace: ignoreWhitespaceForJSON,
               caseSensitive: options?.caseSensitive !== false,
             })
             let normRight = normalizeJSONStrings(rightParsed, {
-              ignoreWhitespace: !!options?.ignoreWhitespace,
+              ignoreWhitespace: ignoreWhitespaceForJSON,
               caseSensitive: options?.caseSensitive !== false,
             })
 
@@ -278,7 +281,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         const diffOptions = {
           // After structural normalization above, we only need line-level
           // whitespace ignore for indentation/formatting differences.
-          ignoreWhitespace: !!options?.ignoreWhitespace,
+          ignoreWhitespace: ignoreWhitespaceForJSON,
           caseSensitive: options?.caseSensitive !== false,
         }
         const d = await computeDiffProgressive(leftText, rightText, diffOptions, (p) => postProgress(id, p, 'Comparing…'))
@@ -311,7 +314,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
           let leftForDiff = left
           let rightForDiff = right
 
-          const shouldNormalizeWhitespace = !!options?.ignoreWhitespace
+          const ignoreWhitespaceForJSON = options?.formattingSensitive ? false : options?.ignoreWhitespace !== false
+          const shouldNormalizeWhitespace = ignoreWhitespaceForJSON
           const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
           if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
             try {
@@ -319,11 +323,11 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               const rightParsed = JSON.parse(right)
 
               let normLeft = normalizeJSONStrings(leftParsed, {
-                ignoreWhitespace: !!options?.ignoreWhitespace,
+                ignoreWhitespace: ignoreWhitespaceForJSON,
                 caseSensitive: options?.caseSensitive !== false,
               })
               let normRight = normalizeJSONStrings(rightParsed, {
-                ignoreWhitespace: !!options?.ignoreWhitespace,
+                ignoreWhitespace: ignoreWhitespaceForJSON,
                 caseSensitive: options?.caseSensitive !== false,
               })
 
@@ -341,7 +345,16 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
             }
           }
 
-          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
+          leftForDiff = normalizeLineEndings(leftForDiff)
+          rightForDiff = normalizeLineEndings(rightForDiff)
+
+          // When ignoring whitespace, strip trailing whitespace per line to avoid spurious "changed" flags.
+          if (ignoreWhitespaceForJSON) {
+            leftForDiff = leftForDiff.replace(/[ \t]+$/gm, '')
+            rightForDiff = rightForDiff.replace(/[ \t]+$/gm, '')
+          }
+
+          const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: ignoreWhitespaceForJSON, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
         } catch (_) {}
       }

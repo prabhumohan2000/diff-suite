@@ -151,7 +151,7 @@ function normalizeArray(arr: any[], options: ComparisonOptions): any[] {
 // -----------------------------
 function normalizeLineEndings(s: string) {
   // Keep comparison stable across CRLF/LF
-  return s.replace(/\r\n/g, '\n')
+  return s.replace(/\r\n?/g, '\n')
 }
 
 function compareRawTextJSON(leftRaw: string, rightRaw: string): DiffItem[] {
