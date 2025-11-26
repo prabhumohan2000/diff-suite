@@ -53,7 +53,7 @@ function computeDiffProgressive(
     // Pre-normalize once to avoid repeated regex and lowercasing in the hot loop
     const normalize = (s: string) => {
       let n = s
-      if (options.ignoreWhitespace) n = n.replace(/\s+/g, ' ').trim()
+      if (options.ignoreWhitespace) n = n.replace(/\s+/g, '')
       if (options.caseSensitive === false) n = n.toLowerCase()
       return n
     }

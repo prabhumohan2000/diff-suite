@@ -5,15 +5,15 @@ import {
   Container,
   Box,
   Stack,
-  IconButton,
-  Tooltip,
   Snackbar,
   Alert,
   CircularProgress,
   Typography,
+  Paper,
 } from '@mui/material'
 import Header from '@/components/Header'
-import ModeSelector from '@/components/ModeSelector'
+import Sidebar from '@/components/Sidebar'
+import ActionButton from '@/components/ActionButton'
 import ValidationView from '@/components/ValidationView'
 import ComparisonView from '@/components/ComparisonView'
 import { FormatType, ActionType, ComparisonOptions } from '@/types'
@@ -68,7 +68,7 @@ export default function Home() {
           const parsed = JSON.parse(savedOpt)
           return { ...defaultComparisonOptions, ...parsed }
         }
-      } catch {}
+      } catch { }
     }
     return { ...defaultComparisonOptions }
   })
@@ -80,6 +80,29 @@ export default function Home() {
     return true
   })
   const pendingOptionsRestoreRef = useRef(false)
+
+  // Sidebar mobile toggle state
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const handleDrawerToggle = useCallback(() => {
+    setMobileOpen(!mobileOpen)
+  }, [mobileOpen])
+
+  // Sidebar visibility state (desktop)
+  const [sidebarVisible, setSidebarVisible] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('diff-suite-sidebar-visible')
+      return saved !== 'false' // Default to true
+    }
+    return true
+  })
+
+  const handleSidebarToggle = useCallback(() => {
+    const newValue = !sidebarVisible
+    setSidebarVisible(newValue)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('diff-suite-sidebar-visible', String(newValue))
+    }
+  }, [sidebarVisible])
 
   // Load content/options from persistent storage on mount when enabled.
   // Mode tabs are restored via the lazy useState initializers above.
@@ -101,7 +124,7 @@ export default function Home() {
               const parsed = JSON.parse(savedOpt)
               pendingOptionsRestoreRef.current = true
               setOptions((prev) => ({ ...defaultComparisonOptions, ...prev, ...parsed }))
-            } catch {}
+            } catch { }
           }
         }
       } catch (e) {
@@ -157,6 +180,7 @@ export default function Home() {
     setOptions({ ...defaultComparisonOptions })
     setLeftContent('')
     setRightContent('')
+    setMobileOpen(false) // Close sidebar on selection (mobile)
 
     // Text mode only supports compare action
     if (newFormat === 'text') {
@@ -172,11 +196,12 @@ export default function Home() {
         // @ts-ignore
         window.validationViewResetRef?.current?.()
       }
-    } catch {}
+    } catch { }
   }, [formatType])
 
   const handleActionChange = useCallback((newAction: ActionType) => {
     setActionType(newAction)
+    setMobileOpen(false) // Close sidebar on selection (mobile)
   }, [])
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'warning' | 'error' }>({ open: false, message: '', severity: 'error' })
@@ -201,6 +226,27 @@ export default function Home() {
     }
   }, [])
 
+  const handleStorageToggle = useCallback((enabled: boolean) => {
+    setEnableStorage(enabled)
+    localStorage.setItem('diff-suite-storage-enabled', String(enabled))
+    if (!enabled) {
+      const storages = [window.localStorage, window.sessionStorage]
+      for (const s of storages) {
+        try {
+          s.removeItem('diffsuite_input_1')
+          s.removeItem('diffsuite_input_2')
+          s.removeItem('diffsuite_options')
+        } catch { }
+      }
+      setLeftContent('')
+      setRightContent('')
+      setOptions({ ...defaultComparisonOptions })
+      setSnackbar({ open: true, message: 'Auto-save disabled - Data will clear on refresh', severity: 'warning' })
+    } else {
+      setSnackbar({ open: true, message: 'Auto-save enabled - Your work will be saved', severity: 'success' })
+    }
+  }, [])
+
   const handleFileUpload = useCallback(
     (side: 'left' | 'right', event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -213,19 +259,19 @@ export default function Home() {
       const accepted = formatType === 'json'
         ? ['.json']
         : formatType === 'xml'
-        ? ['.xml']
-        : ['.txt', '.text'];
-  
+          ? ['.xml']
+          : ['.txt', '.text'];
+
       const name = file.name.trim().toLowerCase();
       const valid = accepted.some((ext) => name.endsWith(ext));
-  
+
       if (!valid) {
         const typeLabel =
           formatType === 'json'
             ? 'JSON (.json)'
             : formatType === 'xml'
-            ? 'XML (.xml)'
-            : 'TXT (.txt or .text)';
+              ? 'XML (.xml)'
+              : 'TXT (.txt or .text)';
         setSnackbar({
           open: true,
           message: `Invalid file for ${formatType.toUpperCase()}. Expected ${typeLabel}.`,
@@ -245,7 +291,7 @@ export default function Home() {
         event.target.value = '';
         return;
       }
-  
+
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
@@ -261,7 +307,7 @@ export default function Home() {
             // @ts-ignore
             window.validationViewResetRef?.current?.()
           }
-        } catch {}
+        } catch { }
         setOverlay({ open: false })
         event.target.value = ''; // ensure reset happens after read
       };
@@ -271,11 +317,11 @@ export default function Home() {
     },
     [formatType, setSnackbar, setLeftContent, setRightContent]
   );
-  
+
 
   // Key for forcing remount of components
   const [resetKey, setResetKey] = useState(0)
-  
+
   const handleReset = useCallback(() => {
     setLeftContent('')
     setRightContent('')
@@ -287,10 +333,10 @@ export default function Home() {
           try {
             s.removeItem('diffsuite_input_1')
             s.removeItem('diffsuite_input_2')
-          } catch {}
+          } catch { }
         }
       }
-    } catch {}
+    } catch { }
     // Attempt to reset any child view state if available
     try {
       // @ts-ignore - exposed by ComparisonView
@@ -303,7 +349,7 @@ export default function Home() {
         // @ts-ignore
         window.validationViewResetRef.current()
       }
-    } catch {}
+    } catch { }
     // Force remount of components by changing the key
     setResetKey(prev => prev + 1)
   }, [])
@@ -351,7 +397,7 @@ export default function Home() {
         // @ts-ignore
         window.validationViewResetRef?.current?.()
       }
-    } catch {}
+    } catch { }
   }, [leftContent, rightContent])
 
   const handleCopy = useCallback(async (text: string) => {
@@ -410,137 +456,76 @@ export default function Home() {
   }, [formatType, leftContent, rightContent])
 
   return (
-    <Box 
+    <Box
       className="flex flex-col min-h-screen relative z-10"
       sx={{
         backgroundColor: 'background.default',
         minHeight: '100vh',
-        // Offset for fixed header height (64px mobile ~ 80px desktop)
-        pt: { xs: '72px', sm: '88px' },
       }}
     >
-      <Header 
+      <Header
         enableStorage={enableStorage}
-        onStorageToggle={(enabled) => {
-          setEnableStorage(enabled)
-          localStorage.setItem('diff-suite-storage-enabled', String(enabled))
-          if (!enabled) {
-            // Clear persisted input/options and reset content for clarity.
-            // Keep last used mode tabs intact.
-            const storages = [window.localStorage, window.sessionStorage]
-            for (const s of storages) {
-              try {
-                s.removeItem('diffsuite_input_1')
-                s.removeItem('diffsuite_input_2')
-                s.removeItem('diffsuite_options')
-              } catch {}
-            }
-            setLeftContent('')
-            setRightContent('')
-            setOptions({ ...defaultComparisonOptions })
-            setSnackbar({ open: true, message: 'Auto-save disabled - Data will clear on refresh', severity: 'warning' })
-          } else {
-            setSnackbar({ open: true, message: 'Auto-save enabled - Your work will be saved', severity: 'success' })
-          }
-        }}
+        onStorageToggle={handleStorageToggle}
         onSettingsClick={() => {
           if (actionType !== 'compare') return
           if (typeof window !== 'undefined') {
             try {
               // @ts-ignore
               window.comparisonViewOpenSettings?.(null)
-            } catch {}
+            } catch { }
           }
         }}
+        onDrawerToggle={handleDrawerToggle}
+        sidebarVisible={sidebarVisible}
+        onSidebarToggle={handleSidebarToggle}
       />
-      <Container maxWidth={false} className="flex-1 py-8 relative z-10" sx={{ maxWidth: { xs: '100%', lg: 1400 }, mx: 'auto', px: { xs: 2, md: 4 } }}>
-        <ModeSelector
+
+      <Box sx={{ display: 'flex', flex: 1, pt: { xs: '70px', sm: '88px' } }}>
+        <Sidebar
+          mobileOpen={mobileOpen}
+          onDrawerToggle={handleDrawerToggle}
           formatType={formatType}
           actionType={actionType}
           onFormatChange={handleFormatChange}
           onActionChange={handleActionChange}
+          sidebarVisible={sidebarVisible}
+          enableStorage={enableStorage}
+          onStorageToggle={handleStorageToggle}
         />
 
-        {actionType === 'validate' ? (
-          <Stack
-            direction="row"
-            spacing={1}
-            className="mb-4 flex-wrap gap-2 justify-center"
-          >
-            <Tooltip title="Upload file for left side">
-              <IconButton
-                component="label"
-                size="small"
-                aria-label="upload file left"
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            width: {
+              xs: '100%',
+              md: sidebarVisible ? `calc(100% - 280px)` : '100%'
+            },
+            transition: 'width 0.3s ease'
+          }}
+        >
+          <Container maxWidth={false} sx={{ maxWidth: { xs: '100%', lg: 1400 }, mx: 'auto', px: { xs: 0, md: 2 } }}>
+            {actionType === 'validate' && (
+              <Paper
+                elevation={0}
+                className="glass-card dark:glass-card-dark"
+                sx={{
+                  p: 1.5,
+                  mb: 3,
+                  borderRadius: '16px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  flexWrap: 'wrap',
+                  width: 'fit-content',
+                  mx: 'auto',
+                }}
               >
-                <FileUploadIcon />
-                <input
-                  type="file"
-                  hidden
-                  accept={
-                    formatType === 'json'
-                      ? '.json'
-                      : formatType === 'xml'
-                      ? '.xml'
-                      : '.txt,.text'
-                  }
-                  onChange={(e) => handleFileUpload('left', e)}
-                />
-              </IconButton>
-            </Tooltip>
-            {leftContent && (
-              <>
-                {(formatType === 'json' || formatType === 'xml') && (
-                  <Tooltip title={`Prettify ${formatType.toUpperCase()}`}>
-                    <IconButton size="small" onClick={() => handlePrettify('single')} aria-label="prettify">
-                      <AutoFixHighIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                <Tooltip title="Download content">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDownload(leftContent, `validate.${formatType}`)}
-                    aria-label="download validate content"
-                  >
-                    <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Copy content">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleCopy(leftContent)}
-                    aria-label="copy"
-                  >
-                    <ContentCopyIcon />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
-            <Tooltip title="Reset">
-              <IconButton size="small" onClick={handleReset} aria-label="reset">
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        ) : (
-          <Stack
-            direction="row"
-            spacing={1}
-            className="mb-4 flex-wrap gap-2"
-            sx={{
-              justifyContent: { xs: 'center', md: 'space-between' },
-              alignItems: 'center',
-              display: { xs: 'none', md: 'flex' }, // hide global compare toolbar on mobile
-            }}
-          >
-            {/* Left-aligned controls (left editor) */}
-            <Box className="flex items-center gap-2">
-              <Tooltip title="Upload left content">
-                <IconButton
+                <ActionButton
                   component="label"
-                  size="small"
-                  aria-label="upload file left"
+                  title="Upload file"
                 >
                   <FileUploadIcon />
                   <input
@@ -550,166 +535,225 @@ export default function Home() {
                       formatType === 'json'
                         ? '.json'
                         : formatType === 'xml'
-                        ? '.xml'
-                        : '.txt,.text'
+                          ? '.xml'
+                          : '.txt,.text'
                     }
                     onChange={(e) => handleFileUpload('left', e)}
                   />
-                </IconButton>
-              </Tooltip>
-              {leftContent && (
-                <>
-                  <Tooltip title="Download left content">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDownload(leftContent, `left.${formatType}`)}
-                      aria-label="download left"
+                </ActionButton>
+
+                {leftContent && (
+                  <>
+                    {(formatType === 'json' || formatType === 'xml') && (
+                      <ActionButton
+                        title={`Prettify ${formatType.toUpperCase()}`}
+                        onClick={() => handlePrettify('single')}
+                      >
+                        <AutoFixHighIcon />
+                      </ActionButton>
+                    )}
+                    <ActionButton
+                      title="Download"
+                      onClick={() => handleDownload(leftContent, `validate.${formatType}`)}
                     >
                       <DownloadIcon />
-                    </IconButton>
-                  </Tooltip>
-                  {(formatType === 'json' || formatType === 'xml') && (
-                    <Tooltip title={`Prettify left ${formatType.toUpperCase()}`}>
-                      <IconButton size="small" onClick={() => handlePrettify('left')} aria-label="prettify left">
-                        <AutoFixHighIcon />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  <Tooltip title="Copy left content">
-                    <IconButton
-                      size="small"
+                    </ActionButton>
+                    <ActionButton
+                      title="Copy"
                       onClick={() => handleCopy(leftContent)}
-                      aria-label="copy left"
                     >
                       <ContentCopyIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Clear left">
-                    <IconButton
-                      size="small"
-                      onClick={() => setLeftContent('')}
-                      aria-label="clear left"
-                    >
-                      <RefreshIcon />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-            </Box>
-
-            {/* Center controls (shared actions) */}
-            <Box className="flex items-center gap-2 justify-center">
-              <Tooltip title="Swap left and right">
-                <IconButton
-                  size="small"
-                  onClick={handleSwap}
-                  aria-label="swap content"
-                  disabled={!leftContent.trim() || !rightContent.trim()}
+                    </ActionButton>
+                  </>
+                )}
+                <ActionButton
+                  title="Reset"
+                  onClick={handleReset}
+                  color="error"
+                  sx={{ color: 'error.main' }}
                 >
-                  <SwapHorizIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Comparison Options">
-                <IconButton
-                  size="small"
-                  aria-label="comparison settings"
-                  onClick={(e) => {
-                    try {
-                      // @ts-ignore
-                      window.comparisonViewOpenSettings?.(e.currentTarget)
-                    } catch {}
-                  }}
-                >
-                  <SettingsIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
+                  <RefreshIcon />
+                </ActionButton>
+              </Paper>
+            )}
+            {actionType === 'compare' && (
+              <Box
+                className="mb-4"
+                sx={{
+                  display: { xs: 'none', md: 'grid' },
+                  gridTemplateColumns: '1fr auto 1fr',
+                  gap: 2,
+                  alignItems: 'center',
+                }}
+              >
+                {/* Left-aligned controls (left editor) */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <Paper
+                    elevation={0}
+                    className="glass-card dark:glass-card-dark"
+                    sx={{ p: 1, borderRadius: '16px', display: 'flex', gap: 1 }}
+                  >
+                    <ActionButton
+                      component="label"
+                      title="Upload left"
+                    >
+                      <FileUploadIcon />
+                      <input
+                        type="file"
+                        hidden
+                        accept={
+                          formatType === 'json'
+                            ? '.json'
+                            : formatType === 'xml'
+                              ? '.xml'
+                              : '.txt,.text'
+                        }
+                        onChange={(e) => handleFileUpload('left', e)}
+                      />
+                    </ActionButton>
+                    {leftContent && (
+                      <>
+                        <ActionButton
+                          title="Download left"
+                          onClick={() => handleDownload(leftContent, `left.${formatType}`)}
+                        >
+                          <DownloadIcon />
+                        </ActionButton>
+                        {(formatType === 'json' || formatType === 'xml') && (
+                          <ActionButton
+                            title="Prettify left"
+                            onClick={() => handlePrettify('left')}
+                          >
+                            <AutoFixHighIcon />
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          title="Copy left"
+                          onClick={() => handleCopy(leftContent)}
+                        >
+                          <ContentCopyIcon />
+                        </ActionButton>
+                        <ActionButton
+                          title="Clear left"
+                          onClick={() => setLeftContent('')}
+                          sx={{ color: 'error.main' }}
+                        >
+                          <RefreshIcon />
+                        </ActionButton>
+                      </>
+                    )}
+                  </Paper>
+                </Box>
 
-            {/* Right-aligned controls (right editor) */}
-            <Box className="flex items-center gap-2 justify-start">
-              <Tooltip title="Upload right conent">
-                <IconButton
-                  component="label"
-                  size="small"
-                  aria-label="upload file right"
+                {/* Center controls (shared actions) - Always centered */}
+                <Paper
+                  elevation={0}
+                  className="glass-card dark:glass-card-dark"
+                  sx={{ p: 1, borderRadius: '16px', display: 'flex', gap: 1 }}
                 >
-                  <FileUploadIcon />
-                  <input
-                    type="file"
-                    hidden
-                    accept={
-                      formatType === 'json'
-                        ? '.json'
-                        : formatType === 'xml'
-                        ? '.xml'
-                        : '.txt,.text'
-                    }
-                    onChange={(e) => handleFileUpload('right', e)}
-                  />
-                </IconButton>
-              </Tooltip>
-              {rightContent && (
-                <>
-                  <Tooltip title="Download right content">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDownload(rightContent, `right.${formatType}`)}
-                      aria-label="download right"
-                    >
-                      <DownloadIcon />
-                    </IconButton>
-                  </Tooltip>
-                  {(formatType === 'json' || formatType === 'xml') && (
-                    <Tooltip title={`Prettify right ${formatType.toUpperCase()}`}>
-                      <IconButton size="small" onClick={() => handlePrettify('right')} aria-label="prettify right">
-                        <AutoFixHighIcon />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  <Tooltip title="Copy right content">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopy(rightContent)}
-                      aria-label="copy right"
-                    >
-                      <ContentCopyIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Clear right">
-                    <IconButton
-                      size="small"
-                      onClick={() => setRightContent('')}
-                      aria-label="clear right"
-                    >
-                      <RefreshIcon />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-            </Box>
-          </Stack>
-        )}
+                  <ActionButton
+                    title="Swap content"
+                    onClick={handleSwap}
+                    disabled={!leftContent.trim() || !rightContent.trim()}
+                  >
+                    <SwapHorizIcon />
+                  </ActionButton>
+                  <ActionButton
+                    title="Comparison Options"
+                    onClick={(e) => {
+                      try {
+                        // @ts-ignore
+                        window.comparisonViewOpenSettings?.(e.currentTarget)
+                      } catch { }
+                    }}
+                  >
+                    <SettingsIcon />
+                  </ActionButton>
+                </Paper>
 
-        {actionType === 'validate' ? (
-          <ValidationView
-            key={`${formatType}-${resetKey}`}
-            formatType={formatType}
-            content={leftContent}
-            onContentChange={setLeftContent}
-          />
-        ) : (
-          <ComparisonView
-            key={`${formatType}-${resetKey}`}
-            formatType={formatType}
-            leftContent={leftContent}
-            rightContent={rightContent}
-            onLeftContentChange={setLeftContent}
-            onRightContentChange={setRightContent}
-            options={options}
-            onOptionsChange={setOptions}
-          />
-        )}
-      </Container>
+                {/* Right-aligned controls (right editor) */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Paper
+                    elevation={0}
+                    className="glass-card dark:glass-card-dark"
+                    sx={{ p: 1, borderRadius: '16px', display: 'flex', gap: 1 }}
+                  >
+                    <ActionButton
+                      component="label"
+                      title="Upload right"
+                    >
+                      <FileUploadIcon />
+                      <input
+                        type="file"
+                        hidden
+                        accept={
+                          formatType === 'json'
+                            ? '.json'
+                            : formatType === 'xml'
+                              ? '.xml'
+                              : '.txt,.text'
+                        }
+                        onChange={(e) => handleFileUpload('right', e)}
+                      />
+                    </ActionButton>
+                    {rightContent && (
+                      <>
+                        <ActionButton
+                          title="Download right"
+                          onClick={() => handleDownload(rightContent, `right.${formatType}`)}
+                        >
+                          <DownloadIcon />
+                        </ActionButton>
+                        {(formatType === 'json' || formatType === 'xml') && (
+                          <ActionButton
+                            title="Prettify right"
+                            onClick={() => handlePrettify('right')}
+                          >
+                            <AutoFixHighIcon />
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          title="Copy right"
+                          onClick={() => handleCopy(rightContent)}
+                        >
+                          <ContentCopyIcon />
+                        </ActionButton>
+                        <ActionButton
+                          title="Clear right"
+                          onClick={() => setRightContent('')}
+                          sx={{ color: 'error.main' }}
+                        >
+                          <RefreshIcon />
+                        </ActionButton>
+                      </>
+                    )}
+                  </Paper>
+                </Box>
+              </Box>
+            )}
+
+            {actionType === 'validate' ? (
+              <ValidationView
+                key={`${formatType}-${resetKey}`}
+                formatType={formatType}
+                content={leftContent}
+                onContentChange={setLeftContent}
+              />
+            ) : (
+              <ComparisonView
+                key={`${formatType}-${resetKey}`}
+                formatType={formatType}
+                leftContent={leftContent}
+                rightContent={rightContent}
+                onLeftContentChange={setLeftContent}
+                onRightContentChange={setRightContent}
+                options={options}
+                onOptionsChange={setOptions}
+              />
+            )}
+          </Container>
+        </Box>
+      </Box>
 
       <Snackbar
         open={snackbar.open}
@@ -732,24 +776,134 @@ export default function Home() {
             right: 0,
             bottom: 0,
             zIndex: 2000,
-            backgroundColor: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(2px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            animation: 'fadeIn 0.2s ease-in-out',
+            '@keyframes fadeIn': {
+              from: { opacity: 0 },
+              to: { opacity: 1 },
+            },
           }}
         >
-          <Box className="flex flex-col items-center gap-2" sx={{ minWidth: 260 }}>
-            <CircularProgress size={40} sx={{ color: 'white' }} />
-            <Typography variant="body2" sx={{ color: 'white', fontWeight: 600 }}>
-              {overlay.message || 'Processing…'}{typeof overlay.progress === 'number' ? ` ${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%` : ''}
-            </Typography>
+          <Box
+            sx={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRadius: '24px',
+              border: '1px solid rgba(124, 58, 237, 0.2)',
+              boxShadow: '0 20px 60px rgba(124, 58, 237, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+              p: 4,
+              minWidth: 280,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3,
+              animation: 'scaleIn 0.3s ease-out',
+              '@keyframes scaleIn': {
+                from: { transform: 'scale(0.9)', opacity: 0 },
+                to: { transform: 'scale(1)', opacity: 1 },
+              },
+            }}
+          >
+            <Box
+              sx={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* Gradient background circle */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)',
+                  animation: 'pulse 2s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': { transform: 'scale(1)', opacity: 0.5 },
+                    '50%': { transform: 'scale(1.1)', opacity: 0.8 },
+                  },
+                }}
+              />
+              {/* Spinner with gradient */}
+              <CircularProgress
+                size={56}
+                thickness={4}
+                sx={{
+                  color: 'transparent',
+                  '& .MuiCircularProgress-circle': {
+                    stroke: 'url(#gradient)',
+                    strokeLinecap: 'round',
+                  },
+                }}
+              />
+              <svg width="0" height="0">
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#7c3aed" />
+                    <stop offset="100%" stopColor="#ec4899" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </Box>
+
+            <Box sx={{ textAlign: 'center', width: '100%' }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  mb: 0.5,
+                }}
+              >
+                {overlay.message || 'Processing…'}
+              </Typography>
+              {typeof overlay.progress === 'number' && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.secondary',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {Math.max(0, Math.min(100, Math.round(overlay.progress)))}%
+                </Typography>
+              )}
+            </Box>
+
             {typeof overlay.progress === 'number' && (
-              <Box sx={{ width: '100%', mt: 1 }}>
-                <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0, Math.min(100, Math.round(overlay.progress)))}
-                  style={{ height: 6, width: '100%', background: 'rgba(255,255,255,0.25)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%`, background: '#90caf9', transition: 'width 200ms ease' }} />
-                </div>
+              <Box sx={{ width: '100%' }}>
+                <Box
+                  sx={{
+                    height: 8,
+                    width: '100%',
+                    background: 'rgba(124, 58, 237, 0.1)',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      height: '100%',
+                      width: `${Math.max(0, Math.min(100, Math.round(overlay.progress)))}%`,
+                      background: 'linear-gradient(90deg, #7c3aed 0%, #ec4899 100%)',
+                      borderRadius: 12,
+                      transition: 'width 300ms ease',
+                      boxShadow: '0 0 10px rgba(124, 58, 237, 0.5)',
+                    }}
+                  />
+                </Box>
               </Box>
             )}
           </Box>
@@ -758,4 +912,3 @@ export default function Home() {
     </Box>
   )
 }
-

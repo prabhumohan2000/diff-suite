@@ -37,6 +37,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CodeEditor from '@/components/CodeEditor'
 import DiffDisplay from '@/components/DiffDisplay'
 import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
+import ActionButton from '@/components/ActionButton'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
 import { compareJSON, reorderObjectKeys } from '@/utils/comparators/jsonComparator'
 import { compareXML } from '@/utils/comparators/xmlComparator'
@@ -46,7 +47,7 @@ import { normalizeXMLAttributes } from '@/utils/diffUtils/xmlNormalizer'
 import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
-import {  compareTextEnhanced } from '@/utils/comparators/textComparator'
+import { compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 interface ComparisonViewProps {
   formatType: FormatType
@@ -267,7 +268,7 @@ export default function ComparisonView({
             window.globalOverlay?.show?.(msg, p)
             // @ts-ignore
             window.globalOverlay?.update?.(msg, p)
-          } catch {}
+          } catch { }
           return
         }
 
@@ -279,7 +280,7 @@ export default function ComparisonView({
           try {
             // @ts-ignore
             window.globalOverlay?.hide?.()
-          } catch {}
+          } catch { }
           return
         }
         const result = data.result
@@ -289,7 +290,7 @@ export default function ComparisonView({
         try {
           // @ts-ignore
           window.globalOverlay?.hide?.()
-        } catch {}
+        } catch { }
       }
       return true
     } catch (err) {
@@ -353,7 +354,7 @@ export default function ComparisonView({
       }
       return
     }
-  }, [leftContent, rightContent, formatType, options,initWorker])
+  }, [leftContent, rightContent, formatType, options, initWorker])
 
   const handleOptionChange = (key: keyof ComparisonOptions) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -416,177 +417,413 @@ export default function ComparisonView({
         disableScrollLock
         PaperProps={{
           elevation: 0,
-          className: "glass-card dark:glass-card-dark smooth-transition",
           sx: {
-            maxWidth: 'min(90vw, 420px)',
+            maxWidth: 'min(90vw, 460px)',
+            minWidth: 320,
             zIndex: (theme) => theme.zIndex.modal + 1,
             overflow: 'visible',
-            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.12))',
+            background: 'rgba(255, 255, 255, 0.98)',
+            backdropFilter: 'blur(24px)',
+            borderRadius: '20px',
+            border: '1px solid rgba(124, 58, 237, 0.15)',
+            boxShadow: '0 20px 60px rgba(124, 58, 237, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
             mt: 1.5,
-            '& .MuiMenuItem-root': {
-              py: 1.5,
-              px: 2,
-            },
+            px: 0,
+            py: 0,
+            transition: 'all 0.3s ease',
+          },
+        }}
+        MenuListProps={{
+          sx: {
+            py: 0,
           },
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <Box sx={{ px: 2, py: 1, opacity: 0.7 }}>
-          <Typography variant="caption" sx={{ textTransform: 'uppercase', fontWeight: 600 }}>
-            {formatType.toUpperCase()} Options
-          </Typography>
-        </Box>
-        {formatType === 'json' && (
-          <>
-            <MenuItem onClick={() => handleOptionChange('ignoreKeyOrder')({ target: { checked: !options.ignoreKeyOrder }} as React.ChangeEvent<HTMLInputElement>)}>
-              <ListItemIcon sx={{ minWidth: '36px' }}>
-                {options.ignoreKeyOrder ? (
-                  <CheckBoxIcon sx={{ 
-                    '& path': {
-                      fill: 'url(#gradientCheckbox)',
-                    },
+        <Box sx={{ px: 2.5, pt: 2, pb: 1 }}>
+          {formatType === 'json' && (
+            <Box sx={{ mb: 1.5 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mb: 1,
+                  pb: 0.75,
+                  borderBottom: '2px solid',
+                  borderImage: 'linear-gradient(90deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%) 1',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 4,
+                    height: 16,
+                    background: 'linear-gradient(180deg, #7c3aed 0%, #ec4899 100%)',
+                    borderRadius: 2,
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
                     color: '#7c3aed',
-                  }} />
-                ) : (
-                  <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
-                )}
-              </ListItemIcon>
-              <ListItemText>Ignore Key Order</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={() => handleOptionChange('ignoreArrayOrder')({ target: { checked: !options.ignoreArrayOrder }} as React.ChangeEvent<HTMLInputElement>)}>
-              <ListItemIcon sx={{ minWidth: '36px' }}>
-                {options.ignoreArrayOrder ? (
-                  <CheckBoxIcon sx={{ 
-                    '& path': {
-                      fill: 'url(#gradientCheckbox)',
+                  }}
+                >
+                  JSON Options
+                </Typography>
+              </Box>
+              <FormGroup sx={{ gap: 0.5 }}>
+                <FormControlLabel
+                  control={(
+                    <Checkbox
+                      checked={!!options.ignoreKeyOrder}
+                      onChange={handleOptionChange('ignoreKeyOrder')}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      checkedIcon={(
+                        <CheckBoxIcon
+                          sx={{
+                            '& path': {
+                              fill: 'url(#gradientCheckbox)',
+                            },
+                            color: '#7c3aed',
+                          }}
+                        />
+                      )}
+                      size="small"
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                        },
+                      }}
+                    />
+                  )}
+                  label="Ignore key order"
+                  sx={{
+                    m: 0,
+                    py: 0.25,
+                    px: 1.25,
+                    borderRadius: '10px',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(124, 58, 237, 0.03)',
                     },
+                    '& .MuiFormControlLabel-label': {
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                    },
+                  }}
+                />
+                <FormControlLabel
+                  control={(
+                    <Checkbox
+                      checked={!!options.ignoreArrayOrder}
+                      onChange={handleOptionChange('ignoreArrayOrder')}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      checkedIcon={(
+                        <CheckBoxIcon
+                          sx={{
+                            '& path': {
+                              fill: 'url(#gradientCheckbox)',
+                            },
+                            color: '#7c3aed',
+                          }}
+                        />
+                      )}
+                      size="small"
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                        },
+                      }}
+                    />
+                  )}
+                  label="Ignore array order"
+                  sx={{
+                    m: 0,
+                    py: 0.25,
+                    px: 1.25,
+                    borderRadius: '10px',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(124, 58, 237, 0.03)',
+                    },
+                    '& .MuiFormControlLabel-label': {
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                    },
+                  }}
+                />
+              </FormGroup>
+            </Box>
+          )}
+
+          {formatType === 'xml' && (
+            <Box sx={{ mb: 1.5 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mb: 1,
+                  pb: 0.75,
+                  borderBottom: '2px solid',
+                  borderImage: 'linear-gradient(90deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%) 1',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 4,
+                    height: 16,
+                    background: 'linear-gradient(180deg, #7c3aed 0%, #ec4899 100%)',
+                    borderRadius: 2,
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
                     color: '#7c3aed',
-                  }} />
-                ) : (
-                  <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
-                )}
-              </ListItemIcon>
-              <ListItemText>Ignore Array Order</ListItemText>
-            </MenuItem>
-          </>
-        )}
-        {formatType === 'xml' && (
-          <MenuItem onClick={() => handleOptionChange('ignoreAttributeOrder')({ target: { checked: !options.ignoreAttributeOrder }} as React.ChangeEvent<HTMLInputElement>)}>
-            <ListItemIcon sx={{ minWidth: '36px' }}>
-              {options.ignoreAttributeOrder ? (
-                <CheckBoxIcon sx={{ 
-                  '& path': {
-                    fill: 'url(#gradientCheckbox)',
-                  },
+                  }}
+                >
+                  XML Options
+                </Typography>
+              </Box>
+              <FormGroup sx={{ gap: 0.5 }}>
+                <FormControlLabel
+                  control={(
+                    <Checkbox
+                      checked={!!options.ignoreAttributeOrder}
+                      onChange={handleOptionChange('ignoreAttributeOrder')}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      checkedIcon={(
+                        <CheckBoxIcon
+                          sx={{
+                            '& path': {
+                              fill: 'url(#gradientCheckbox)',
+                            },
+                            color: '#7c3aed',
+                          }}
+                        />
+                      )}
+                      size="small"
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                        },
+                      }}
+                    />
+                  )}
+                  label="Ignore attribute order"
+                  sx={{
+                    m: 0,
+                    py: 0.25,
+                    px: 1.25,
+                    borderRadius: '10px',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(124, 58, 237, 0.03)',
+                    },
+                    '& .MuiFormControlLabel-label': {
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                    },
+                  }}
+                />
+              </FormGroup>
+            </Box>
+          )}
+
+          <Box sx={{ mb: 0 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                mb: 1,
+                pb: 0.75,
+                borderBottom: '2px solid',
+                borderImage: 'linear-gradient(90deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%) 1',
+              }}
+            >
+              <Box
+                sx={{
+                  width: 4,
+                  height: 16,
+                  background: 'linear-gradient(180deg, #7c3aed 0%, #ec4899 100%)',
+                  borderRadius: 2,
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
                   color: '#7c3aed',
-                }} />
-              ) : (
-                <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
-              )}
-            </ListItemIcon>
-            <ListItemText>Ignore Attribute Order</ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem onClick={() => handleOptionChange('ignoreWhitespace')({ target: { checked: !options.ignoreWhitespace }} as React.ChangeEvent<HTMLInputElement>)}>
-          <ListItemIcon sx={{ minWidth: '36px' }}>
-            {options.ignoreWhitespace ? (
-              <CheckBoxIcon sx={{ 
-                '& path': {
-                  fill: 'url(#gradientCheckbox)',
-                },
-                color: '#7c3aed',
-              }} />
-            ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
-            )}
-          </ListItemIcon>
-          <ListItemText>Ignore Whitespace</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleToggleCaseSensitive}>
-          <ListItemIcon sx={{ minWidth: '36px' }}>
-            {options.caseSensitive ? (
-              <CheckBoxIcon sx={{ 
-                '& path': {
-                  fill: 'url(#gradientCheckbox)',
-                },
-                color: '#7c3aed',
-              }} />
-            ) : (
-              <CheckBoxOutlineBlankIcon sx={{ color: '#7c3aed' }} />
-            )}
-          </ListItemIcon>
-          <ListItemText>Case Sensitive</ListItemText>
-        </MenuItem>
+                }}
+              >
+                General
+              </Typography>
+            </Box>
+            <FormGroup sx={{ gap: 0.5 }}>
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={!!options.ignoreWhitespace}
+                    onChange={handleOptionChange('ignoreWhitespace')}
+                    icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                    checkedIcon={(
+                      <CheckBoxIcon
+                        sx={{
+                          '& path': {
+                            fill: 'url(#gradientCheckbox)',
+                          },
+                          color: '#7c3aed',
+                        }}
+                      />
+                    )}
+                    size="small"
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                      },
+                    }}
+                  />
+                )}
+                label="Ignore whitespace"
+                sx={{
+                  m: 0,
+                  py: 0.25,
+                  px: 1.25,
+                  borderRadius: '10px',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: 'rgba(124, 58, 237, 0.03)',
+                  },
+                  '& .MuiFormControlLabel-label': {
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                  },
+                }}
+              />
+
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={!!options.caseSensitive}
+                    onChange={() => handleToggleCaseSensitive()}
+                    icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                    checkedIcon={(
+                      <CheckBoxIcon
+                        sx={{
+                          '& path': {
+                            fill: 'url(#gradientCheckbox)',
+                          },
+                          color: '#7c3aed',
+                        }}
+                      />
+                    )}
+                    size="small"
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                      },
+                    }}
+                  />
+                )}
+                label="Case sensitive"
+                sx={{
+                  m: 0,
+                  py: 0.25,
+                  px: 1.25,
+                  borderRadius: '10px',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: 'rgba(124, 58, 237, 0.03)',
+                  },
+                  '& .MuiFormControlLabel-label': {
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                  },
+                }}
+              />
+            </FormGroup>
+          </Box>
+        </Box>
+
         <svg width={0} height={0}>
           <defs>
             <linearGradient id="gradientCheckbox" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#7c3aed" />
-              <stop offset="50%" stopColor="#7c3aed" />
-              <stop offset="100%" stopColor="#7c3aed" />
+              <stop offset="100%" stopColor="#ec4899" />
             </linearGradient>
           </defs>
         </svg>
       </Menu>
-    <Box className="mb-3 flex justify-center items-center gap-2">  
-        <IconButton
+    <Box className="mb-3 flex w-full justify-center items-center gap-2">
+        <Paper
+          elevation={0}
+          className="glass-card dark:glass-card-dark"
           sx={{
-            display: { xs: 'inline-flex', md: 'none' },
-            backgroundColor: 'rgba(124, 58, 237, 0.08)',
-            border: '1px solid rgba(124, 58, 237, 0.2)',
-            '&:hover': {
-              backgroundColor: 'rgba(124, 58, 237, 0.16)',
-            },
-          }}
-          aria-label="comparison settings"
-          onClick={(e) => {
-            setAnchorEl(e.currentTarget)
-            setAnchorPosition(null)
+            display: { xs: 'flex', md: 'none' },
+            p: 0.75,
+            borderRadius: '16px',
+            gap: 1,
           }}
         >
-          <SettingsIcon />
-        </IconButton>
-        <IconButton
-          sx={{
-            display: { xs: 'inline-flex', md: 'none' },
-            backgroundColor: 'rgba(124, 58, 237, 0.08)',
-            border: '1px solid rgba(124, 58, 237, 0.2)',
-            '&:hover': {
-              backgroundColor: 'rgba(124, 58, 237, 0.16)',
-            },
-          }}
-          aria-label="swap content"
-          disabled={!leftContent.trim() || !rightContent.trim()}
-          onClick={handleSwapMobile}
-        >
-          <SwapHorizIcon />
-        </IconButton>
-    </Box>
+          <ActionButton
+            title="Swap content"
+            onClick={handleSwapMobile}
+            disabled={!leftContent.trim() || !rightContent.trim()}
+            sx={{ p: 0.75 }}
+          >
+            <SwapHorizIcon fontSize="small" />
+          </ActionButton>
+          <ActionButton
+            title="Comparison options"
+            onClick={(e) => {
+              setAnchorEl(e.currentTarget as any)
+              setAnchorPosition(null)
+            }}
+            sx={{ p: 0.75 }}
+          >
+            <SettingsIcon fontSize="small" />
+          </ActionButton>
+        </Paper>
+      </Box>
       <Box className="mb-3 flex justify-center items-center gap-2">
         <Button
           variant="contained"
           size="large"
           onClick={() => startTransition(() => handleCompare())}
           disabled={loading || !leftContent.trim() || !rightContent.trim()}
-          className="w-full sm:w-auto min-w-[160px] smooth-transition"
+          className="smooth-transition"
           // startIcon={loading ? null : <CompareArrowsIcon />}
           sx={{
             fontWeight: 700,
             textTransform: 'none',
-            background: '#dc2626',
-            boxShadow: '0 4px 16px rgba(248, 113, 113, 0.45)',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+            boxShadow: '0 4px 16px rgba(124, 58, 237, 0.4)',
             py: 1.25,
             px: 4,
             borderRadius: 3,
             transition: 'all 0.3s ease',
             '&:hover': {
-              filter: 'brightness(108%)',
-              boxShadow: '0 6px 22px rgba(248, 113, 113, 0.6)',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #f472b6 100%)',
+              boxShadow: '0 6px 24px rgba(124, 58, 237, 0.5)',
               transform: 'translateY(-2px)',
             },
             '&:active': {
               transform: 'translateY(0)',
-              boxShadow: '0 2px 10px rgba(248, 113, 113, 0.5)',
+              boxShadow: '0 2px 12px rgba(124, 58, 237, 0.4)',
             },
             '&:disabled': {
               background: 'rgba(0, 0, 0, 0.12)',
@@ -608,7 +845,7 @@ export default function ComparisonView({
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={5.5}>
-          <Paper 
+          <Paper
             elevation={0}
             className="glass-card dark:glass-card-dark p-4 smooth-transition"
             sx={{
@@ -626,80 +863,90 @@ export default function ComparisonView({
               }}
               side="left"
               formatType={formatType}
-            onFileInfoChange={(info) => setLeftFileInfo(info)}
+              onFileInfoChange={(info) => setLeftFileInfo(info)}
             >
-            <>
-              <Box
+              <>
+                <Box
                   sx={{
                     display: { xs: 'flex', md: 'none' },
                     mt: 1,
                     mb: 1,
-                    gap: 1,
                     justifyContent: 'flex-start',
                   }}
                 >
-                  <IconButton
-                    component="label"
-                    size="small"
-                    aria-label="upload left mobile"
+                  <Paper
+                    elevation={0}
+                    className="glass-card dark:glass-card-dark"
+                    sx={{
+                      p: 0.5,
+                      borderRadius: '16px',
+                      display: 'flex',
+                      gap: 0.75,
+                    }}
                   >
-                    <FileUploadIcon fontSize="small" />
-                    <input
-                      type="file"
-                      hidden
-                      accept={
-                        formatType === 'json'
-                          ? '.json'
-                          : formatType === 'xml'
-                          ? '.xml'
-                          : '.txt,.text'
-                      }
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        const reader = new FileReader()
-                        reader.onload = (ev) => {
-                          const content = ev.target?.result as string
-                          handleLeftChange(content)
+                    <ActionButton
+                      component="label"
+                      title="Upload left"
+                      sx={{ p: 0.75 }}
+                    >
+                      <FileUploadIcon fontSize="small" />
+                      <input
+                        type="file"
+                        hidden
+                        accept={
+                          formatType === 'json'
+                            ? '.json'
+                            : formatType === 'xml'
+                              ? '.xml'
+                              : '.txt,.text'
                         }
-                        reader.readAsText(file)
-                      }}
-                    />
-                  </IconButton>
-                  {leftContent && (
-                    <>
-                      <IconButton
-                        size="small"
-                        aria-label="download left mobile"
-                        onClick={() => handleDownload(leftContent, `left.${formatType}`)}
-                      >
-                        <DownloadIcon fontSize="small" />
-                      </IconButton>
-                      {(formatType === 'json' || formatType === 'xml') && (
-                        <IconButton
-                          size="small"
-                          aria-label="prettify left mobile"
-                          onClick={() => handlePrettifySide('left')}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = (ev) => {
+                            const content = ev.target?.result as string
+                            handleLeftChange(content)
+                          }
+                          reader.readAsText(file)
+                        }}
+                      />
+                    </ActionButton>
+                    {leftContent && (
+                      <>
+                        <ActionButton
+                          title="Download left"
+                          onClick={() => handleDownload(leftContent, `left.${formatType}`)}
+                          sx={{ p: 0.75 }}
                         >
-                          <AutoFixHighIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                      <IconButton
-                        size="small"
-                        aria-label="copy left mobile"
-                        onClick={() => handleCopy(leftContent)}
-                      >
-                        <ContentCopyIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        aria-label="clear left mobile"
-                        onClick={() => handleLeftChange('')}
-                      >
-                        <RefreshIcon fontSize="small" />
-                      </IconButton>
-                    </>
-                  )}
+                          <DownloadIcon fontSize="small" />
+                        </ActionButton>
+                        {(formatType === 'json' || formatType === 'xml') && (
+                          <ActionButton
+                            title="Prettify left"
+                            onClick={() => handlePrettifySide('left')}
+                            sx={{ p: 0.75 }}
+                          >
+                            <AutoFixHighIcon fontSize="small" />
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          title="Copy left"
+                          onClick={() => handleCopy(leftContent)}
+                          sx={{ p: 0.75 }}
+                        >
+                          <ContentCopyIcon fontSize="small" />
+                        </ActionButton>
+                        <ActionButton
+                          title="Clear left"
+                          onClick={() => handleLeftChange('')}
+                          sx={{ p: 0.75, color: 'error.main' }}
+                        >
+                          <RefreshIcon fontSize="small" />
+                        </ActionButton>
+                      </>
+                    )}
+                  </Paper>
                 </Box>
                 <CodeEditor
                   value={leftContent}
@@ -735,7 +982,7 @@ export default function ComparisonView({
         </Grid>
 
         <Grid item xs={12} md={5.5}>
-          <Paper 
+          <Paper
             elevation={0}
             className="glass-card dark:glass-card-dark p-4 smooth-transition"
             sx={{
@@ -753,89 +1000,99 @@ export default function ComparisonView({
               }}
               side="right"
               formatType={formatType}
-            onFileInfoChange={(info) => setRightFileInfo(info)}
+              onFileInfoChange={(info) => setRightFileInfo(info)}
             >
-            <>
-            <Box
-              sx={{
-                display: { xs: 'flex', md: 'none' },
-                mt: 1,
-                mb: 1,
-                gap: 1,
-                justifyContent: 'flex-start',
-              }}
-            >
-              <IconButton
-                component="label"
-                size="small"
-                aria-label="upload right mobile"
-              >
-                <FileUploadIcon fontSize="small" />
-                <input
-                  type="file"
-                  hidden
-                  accept={
-                    formatType === 'json'
-                      ? '.json'
-                      : formatType === 'xml'
-                      ? '.xml'
-                      : '.txt,.text'
-                  }
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = (ev) => {
-                      const content = ev.target?.result as string
-                      handleRightChange(content)
-                    }
-                    reader.readAsText(file)
+              <>
+                <Box
+                  sx={{
+                    display: { xs: 'flex', md: 'none' },
+                    mt: 1,
+                    mb: 1,
+                    justifyContent: 'flex-start',
                   }}
-                />
-              </IconButton>
-              {rightContent && (
-                <>
-                  <IconButton
-                    size="small"
-                    aria-label="download right mobile"
-                    onClick={() => handleDownload(rightContent, `right.${formatType}`)}
+                >
+                  <Paper
+                    elevation={0}
+                    className="glass-card dark:glass-card-dark"
+                    sx={{
+                      p: 0.5,
+                      borderRadius: '16px',
+                      display: 'flex',
+                      gap: 0.75,
+                    }}
                   >
-                    <DownloadIcon fontSize="small" />
-                  </IconButton>
-                  {(formatType === 'json' || formatType === 'xml') && (
-                    <IconButton
-                      size="small"
-                      aria-label="prettify right mobile"
-                      onClick={() => handlePrettifySide('right')}
+                    <ActionButton
+                      component="label"
+                      title="Upload right"
+                      sx={{ p: 0.75 }}
                     >
-                      <AutoFixHighIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                  <IconButton
-                    size="small"
-                    aria-label="copy right mobile"
-                    onClick={() => handleCopy(rightContent)}
-                  >
-                    <ContentCopyIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    aria-label="clear right mobile"
-                    onClick={() => handleRightChange('')}
-                  >
-                    <RefreshIcon fontSize="small" />
-                  </IconButton>
-                </>
-              )}
-            </Box>
-            <CodeEditor
-              value={rightContent}
-              onChange={handleRightChange}
-              formatType={formatType}
-              label=""
-              placeholder={`Paste second ${formatType.toUpperCase()} here...`}
-            />
-          </>
+                      <FileUploadIcon fontSize="small" />
+                      <input
+                        type="file"
+                        hidden
+                        accept={
+                          formatType === 'json'
+                            ? '.json'
+                            : formatType === 'xml'
+                              ? '.xml'
+                              : '.txt,.text'
+                        }
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = (ev) => {
+                            const content = ev.target?.result as string
+                            handleRightChange(content)
+                          }
+                          reader.readAsText(file)
+                        }}
+                      />
+                    </ActionButton>
+                    {rightContent && (
+                      <>
+                        <ActionButton
+                          title="Download right"
+                          onClick={() => handleDownload(rightContent, `right.${formatType}`)}
+                          sx={{ p: 0.75 }}
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </ActionButton>
+                        {(formatType === 'json' || formatType === 'xml') && (
+                          <ActionButton
+                            title="Prettify right"
+                            onClick={() => handlePrettifySide('right')}
+                            sx={{ p: 0.75 }}
+                          >
+                            <AutoFixHighIcon fontSize="small" />
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          title="Copy right"
+                          onClick={() => handleCopy(rightContent)}
+                          sx={{ p: 0.75 }}
+                        >
+                          <ContentCopyIcon fontSize="small" />
+                        </ActionButton>
+                        <ActionButton
+                          title="Clear right"
+                          onClick={() => handleRightChange('')}
+                          sx={{ p: 0.75, color: 'error.main' }}
+                        >
+                          <RefreshIcon fontSize="small" />
+                        </ActionButton>
+                      </>
+                    )}
+                  </Paper>
+                </Box>
+                <CodeEditor
+                  value={rightContent}
+                  onChange={handleRightChange}
+                  formatType={formatType}
+                  label=""
+                  placeholder={`Paste second ${formatType.toUpperCase()} here...`}
+                />
+              </>
             </FileDropZone>
           </Paper>
         </Grid>
@@ -847,7 +1104,7 @@ export default function ComparisonView({
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
+        <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           variant="filled"
@@ -861,13 +1118,13 @@ export default function ComparisonView({
         <Box ref={resultsRef} className="mt-6 smooth-transition">
           {result.errors ? (
             <>
-              <Typography variant="h6" className="font-bold text-red-500 mb-4 text-center" sx={{marginBottom: '16px'}}>
+              <Typography variant="h6" className="font-bold text-red-500 mb-4 text-center" sx={{ marginBottom: '16px' }}>
                 Invalid Data
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5.5}>
                   {result.errors.left ? (
-                    <Alert 
+                    <Alert
                       severity="error"
                       className="glass-card dark:glass-card-dark smooth-transition h-full"
                       sx={{
@@ -919,7 +1176,7 @@ export default function ComparisonView({
 
                 <Grid item xs={12} md={5.5}>
                   {result.errors.right ? (
-                    <Alert 
+                    <Alert
                       severity="error"
                       className="glass-card dark:glass-card-dark smooth-transition h-full"
                       sx={{
@@ -950,7 +1207,7 @@ export default function ComparisonView({
               </Grid>
             </>
           ) : result.identical ? (
-            <Alert 
+            <Alert
               severity="success"
               className="glass-card dark:glass-card-dark smooth-transition"
               sx={{
@@ -967,7 +1224,7 @@ export default function ComparisonView({
           ) : (
             <>
               {result.summary && (
-                <Paper 
+                <Paper
                   elevation={0}
                   className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
                   sx={{

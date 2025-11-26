@@ -61,6 +61,14 @@ describe('Text Comparator', () => {
       expect(result.identical).toBe(true)
     })
 
+    it('should treat internal spaces as equal when ignoring whitespace', () => {
+      const left = 'hi test TEXT'
+      const right = 'hi test TE  XT'
+      const result = compareTextEnhanced(left, right, { ignoreWhitespace: true })
+      expect(result.identical).toBe(true)
+      expect(result.summary.modified).toBe(0)
+    })
+
     it('should treat blank lines as meaningful when whitespace is not ignored', () => {
       const left = 'A\n\nB'
       const right = 'A\nB'

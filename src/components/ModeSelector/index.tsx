@@ -1,7 +1,12 @@
 'use client'
 
 import React, { memo, useCallback, startTransition } from 'react'
-import { Box, ToggleButtonGroup, ToggleButton, Typography, Paper, Stack } from '@mui/material'
+import { Box, Paper, Stack, Typography } from '@mui/material'
+import DataObjectIcon from '@mui/icons-material/DataObject'
+import CodeIcon from '@mui/icons-material/Code'
+import DescriptionIcon from '@mui/icons-material/Description'
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import SegmentedControl from '@/components/SegmentedControl'
 import { FormatType, ActionType } from '@/types'
 
@@ -31,47 +36,95 @@ function ModeSelector({
   return (
     <Paper
       elevation={0}
-      className="glass-card dark:glass-card-dark p-4 mb-6 smooth-transition"
+      className="glass-card dark:glass-card-dark smooth-transition"
       sx={{
-        '&:hover': {
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-        },
+        p: { xs: 2, sm: 3 },
+        mb: 4,
+        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(249, 250, 251, 0.8) 100%)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.4)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)',
+        borderRadius: '20px',
+        '.dark &': {
+          background: 'linear-gradient(135deg, rgba(30, 30, 30, 0.8) 0%, rgba(20, 20, 20, 0.8) 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+        }
       }}
     >
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 3 }} sx={{ alignItems: { xs: 'stretch', sm: 'flex-end' } }}>
-        <Box className="w-full sm:flex-1 min-w-0 sm:min-w-[200px]">
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 3, md: 6 }} alignItems="center">
+        <Box className="w-full md:flex-1">
           <Typography
             variant="caption"
-            className="mb-2 font-semibold text-xs uppercase tracking-wide"
-            sx={{ color: 'text.secondary', lineHeight: 1.6 }}
+            sx={{
+              display: 'block',
+              mb: 1.5,
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              color: 'text.secondary',
+              opacity: 0.8,
+              ml: 1
+            }}
           >
-            Format Type
+            Format
           </Typography>
           <SegmentedControl
             value={formatType}
             onChange={(v: any) => handleFormat(null, v)}
             options={[
-              { value: 'json', label: 'JSON' },
-              { value: 'xml', label: 'XML' },
-              { value: 'text', label: 'Text' },
+              { value: 'json', label: 'JSON', icon: <DataObjectIcon fontSize="inherit" /> },
+              { value: 'xml', label: 'XML', icon: <CodeIcon fontSize="inherit" /> },
+              { value: 'text', label: 'Text', icon: <DescriptionIcon fontSize="inherit" /> },
             ]}
           />
         </Box>
 
-      <Box className="w-full sm:flex-1 min-w-0 sm:min-w-[200px] mt-0 sm:mt-0">
+        {/* Divider for desktop */}
+        <Box
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            width: '1px',
+            height: '40px',
+            background: 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.1), transparent)',
+            '.dark &': {
+              background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent)',
+            }
+          }}
+        />
+
+        <Box className="w-full md:flex-1">
           <Typography
             variant="caption"
-            className="mb-2 font-semibold text-xs uppercase tracking-wide"
-            sx={{ color: 'text.secondary', lineHeight: 1.6 }}
+            sx={{
+              display: 'block',
+              mb: 1.5,
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              color: 'text.secondary',
+              opacity: 0.8,
+              ml: 1
+            }}
           >
-            Action Type
+            Action
           </Typography>
           <SegmentedControl
             value={actionType}
             onChange={(v: any) => handleAction(null, v)}
             options={[
-              { value: 'validate', label: 'Validate', disabled: formatType === 'text' },
-              { value: 'compare', label: 'Compare' },
+              {
+                value: 'validate',
+                label: 'Validate',
+                icon: <CheckCircleOutlineIcon fontSize="inherit" />,
+                disabled: formatType === 'text'
+              },
+              {
+                value: 'compare',
+                label: 'Compare',
+                icon: <CompareArrowsIcon fontSize="inherit" />
+              },
             ]}
           />
         </Box>

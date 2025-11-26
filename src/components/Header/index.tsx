@@ -14,16 +14,28 @@ import CodeIcon from '@mui/icons-material/Code'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
 import DifferenceIcon from '@mui/icons-material/Difference'
-import SettingsIcon from '@mui/icons-material/Settings' // ⬅️ updated icon import
+import SettingsIcon from '@mui/icons-material/Settings'
+import MenuIcon from '@mui/icons-material/Menu'
+import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import { useThemeMode } from '@/components/ThemeProvider'
 
 interface HeaderProps {
   enableStorage?: boolean
   onStorageToggle?: (enabled: boolean) => void
   onSettingsClick?: () => void
+  onDrawerToggle?: () => void
+  sidebarVisible?: boolean
+  onSidebarToggle?: () => void
 }
 
-export default function Header({ enableStorage = true, onStorageToggle, onSettingsClick }: HeaderProps) {
+export default function Header({
+  enableStorage = true,
+  onStorageToggle,
+  onSettingsClick,
+  onDrawerToggle,
+  sidebarVisible = true,
+  onSidebarToggle
+}: HeaderProps) {
   const trigger = useScrollTrigger({
     disableHysteresis: true,
     threshold: 0,
@@ -35,86 +47,92 @@ export default function Header({ enableStorage = true, onStorageToggle, onSettin
     <Slide appear={false} direction="down" in={true}>
       <AppBar
         position="fixed"
-        elevation={trigger ? 8 : 4}
+        elevation={0}
         sx={{
-          background: '#7c3aed',
-          backdropFilter: 'blur(10px)',
-          color: 'white',
+          background: mode === 'dark'
+            ? 'rgba(18, 18, 18, 0.8)'
+            : 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid',
+          borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+          color: mode === 'dark' ? '#fff' : '#1e293b',
           transition: 'all 0.3s ease',
-          boxShadow: trigger
-            ? '0 8px 32px rgba(168, 85, 247, 0.4)'
-            : '0 4px 20px rgba(168, 85, 247, 0.3)',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar className="min-h-[64px] sm:min-h-[80px] px-4 sm:px-8 items-center justify-center">
-          <Box className="flex items-center justify-start flex-grow mx-4 sm:mx-8">
-            <CodeIcon className="mr-3 text-white" sx={{ fontSize: { xs: 28, sm: 32 } }} />
-            <Box className="flex flex-col items-start">
-              <Typography
-                variant="h5"
-                component="div"
-                className="font-bold text-white leading-tight"
-                sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mt: 2 }}
+        <Toolbar className="min-h-[70px] px-4 sm:px-8 justify-between">
+          {/* Logo Section */}
+          <Box className="flex items-center gap-3">
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={onDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Tooltip title={sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}>
+              <IconButton
+                color="inherit"
+                aria-label="toggle sidebar"
+                onClick={onSidebarToggle}
+                sx={{ mr: 2, display: { xs: 'none', md: 'inline-flex' } }}
               >
-                Diff suite
-              </Typography>
+                {sidebarVisible ? <MenuOpenIcon /> : <MenuIcon />}
+              </IconButton>
+            </Tooltip>
+
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+                borderRadius: '12px',
+                p: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+              }}
+            >
+              <CodeIcon sx={{ color: 'white', fontSize: 24 }} />
+            </Box>
+            <Box>
               <Typography
-                variant="body2"
+                variant="h6"
                 component="div"
-                className="text-white/90 leading-tight"
-                sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, mt: 0.25, mb: 2 }}
+                className="font-bold leading-none tracking-tight"
+                sx={{
+                  fontSize: '1.25rem',
+                  background: mode === 'dark'
+                    ? 'linear-gradient(to right, #fff, #cbd5e1)'
+                    : 'linear-gradient(to right, #1e293b, #475569)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
               >
-                Comparison and validation tool
+                Diff Suite
               </Typography>
             </Box>
           </Box>
 
-          <Box className="flex-shrink-0 w-[72px] sm:w-[88px]" /> {/* Spacer for alignment */}
-
-          <Box className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <Tooltip title="Comparison settings">
-              <span>
-                <IconButton
-                  onClick={onSettingsClick}
-                  sx={{
-                    color: 'white',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      transform: 'scale(1.1)',
-                    },
-                    '&:active': {
-                      transform: 'scale(0.95)',
-                    },
-                    display: { xs: 'inline-flex', sm: 'none' },
-                  }}
-                  aria-label="open settings"
-                  size="small"
-                  className="!p-2"
-                >
-                  <SettingsIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
+          {/* Actions Section */}
+          <Box className="flex items-center gap-2">
             <Tooltip title={enableStorage ? 'Disable browser session' : 'Enable browser session'}>
               <IconButton
                 onClick={() => onStorageToggle?.(!enableStorage)}
                 sx={{
-                  color: enableStorage ? 'white' : 'rgba(255, 255, 255, 0.7)',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  color: enableStorage ? '#7c3aed' : 'inherit',
+                  border: '1px solid',
+                  borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+                  borderRadius: '10px',
+                  p: 1,
+                  background: enableStorage ? (mode === 'dark' ? 'rgba(124, 58, 237, 0.1)' : 'rgba(124, 58, 237, 0.05)') : 'transparent',
                   '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    transform: 'scale(1.1)',
-                  },
-                  '&:active': {
-                    transform: 'scale(0.95)',
+                    background: enableStorage ? (mode === 'dark' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(124, 58, 237, 0.1)') : (mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'),
                   },
                 }}
-                aria-label="toggle storage"
-                size="small"
-                className="!p-2"
               >
-                <DifferenceIcon fontSize="small" /> {/* 🔄 updated icon */}
+                <DifferenceIcon fontSize="small" />
               </IconButton>
             </Tooltip>
 
@@ -122,19 +140,16 @@ export default function Header({ enableStorage = true, onStorageToggle, onSettin
               <IconButton
                 onClick={toggleMode}
                 sx={{
-                  color: 'white',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  color: 'inherit',
+                  border: '1px solid',
+                  borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+                  borderRadius: '10px',
+                  p: 1,
                   '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    transform: 'scale(1.1)',
-                  },
-                  '&:active': {
-                    transform: 'scale(0.95)',
+                    background: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                    borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
                   },
                 }}
-                aria-label="toggle theme"
-                size="small"
-                className="!p-2"
               >
                 {mode === 'dark' ? (
                   <Brightness7Icon fontSize="small" />
@@ -149,4 +164,3 @@ export default function Header({ enableStorage = true, onStorageToggle, onSettin
     </Slide>
   )
 }
-

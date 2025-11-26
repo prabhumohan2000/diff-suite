@@ -190,13 +190,34 @@ export const computeDiff = (
  */
 export const computeLineDiff = (
   left: string,
-  right: string
+  right: string,
+  options?: { ignoreWhitespace?: boolean; caseSensitive?: boolean }
 ): { same: boolean; parts: Array<{ value: string; added?: boolean; removed?: boolean }> } => {
+  // Normalize strings based on options before comparison
+  let normalizedLeft = left
+  let normalizedRight = right
+
+  if (options?.ignoreWhitespace) {
+    normalizedLeft = left.replace(/\s+/g, ' ').trim()
+    normalizedRight = right.replace(/\s+/g, ' ').trim()
+  }
+
+  if (options?.caseSensitive === false) {
+    normalizedLeft = normalizedLeft.toLowerCase()
+    normalizedRight = normalizedRight.toLowerCase()
+  }
+
+  // If normalized strings are equal, return as same
+  if (normalizedLeft === normalizedRight) {
+    return { same: true, parts: [{ value: left }] }
+  }
+
+  // If original strings are equal, return as same
   if (left === right) {
     return { same: true, parts: [{ value: left }] }
   }
 
-  // Simple character-level diff
+  // Simple character-level diff on original strings
   const parts: Array<{ value: string; added?: boolean; removed?: boolean }> = []
   let i = 0
   let j = 0

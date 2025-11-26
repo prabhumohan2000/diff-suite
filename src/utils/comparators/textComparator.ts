@@ -30,7 +30,9 @@ export interface ComparisonResult {
 
 function normalizeText(text: string, options: ComparisonOptions): string {
   if (options.ignoreWhitespace) {
-    return text.replace(/\s+/g, ' ').trim()
+    // When ignoring whitespace, treat horizontal spaces/tabs as insignificant,
+    // but preserve newlines so line structure is still meaningful.
+    return text.replace(/[ \t]+/g, '')
   }
   return text
 }
