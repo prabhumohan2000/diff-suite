@@ -35,6 +35,11 @@ function normalizeText(text: string, options: ComparisonOptions): string {
   return text
 }
 
+function ensureTrailingNewline(text: string): string {
+  if (!text) return text
+  return text.endsWith('\n') ? text : `${text}\n`
+}
+
 // Enhanced version that properly detects modified lines
 export function compareTextEnhanced(
   leftText: string,
@@ -58,7 +63,7 @@ export function compareTextEnhanced(
     if (!options.caseSensitive) {
       result = result.toLowerCase()
     }
-    return result
+    return ensureTrailingNewline(result)
   }
 
   const leftForDiff = textForDiff(leftText)
@@ -98,28 +103,43 @@ export function compareTextEnhanced(
         const hasAdded = addedLine !== undefined
 
         if (hasRemoved && hasAdded) {
-          // Modified line - show word-level diff
           const removedForDiff = textForDiff(removedLine || '')
           const addedForDiff = textForDiff(addedLine || '')
-          const wordDiffs = diffWords(removedForDiff, addedForDiff, { ignoreWhitespace: false })
-          const changes: TextDiffChange[] = wordDiffs.map(w => ({
-            type: w.added ? 'added' : w.removed ? 'removed' : 'unchanged',
-            value: w.value,
-          }))
 
-          leftDiffLines.push({
-            lineNumber: leftLineNum++,
-            type: 'removed',
-            content: removedLine || '',
-            changes: changes.filter(c => c.type !== 'added'),
-          })
-          rightDiffLines.push({
-            lineNumber: rightLineNum++,
-            type: 'added',
-            content: addedLine || '',
-            changes: changes.filter(c => c.type !== 'removed'),
-          })
-          modified++
+          // If the normalized lines are identical, treat as unchanged to avoid false modifications
+          if (removedForDiff === addedForDiff) {
+            leftDiffLines.push({
+              lineNumber: leftLineNum++,
+              type: 'unchanged',
+              content: removedLine || '',
+            })
+            rightDiffLines.push({
+              lineNumber: rightLineNum++,
+              type: 'unchanged',
+              content: addedLine || '',
+            })
+          } else {
+            // Modified line - show word-level diff
+            const wordDiffs = diffWords(removedForDiff, addedForDiff, { ignoreWhitespace: false })
+            const changes: TextDiffChange[] = wordDiffs.map(w => ({
+              type: w.added ? 'added' : w.removed ? 'removed' : 'unchanged',
+              value: w.value,
+            }))
+
+            leftDiffLines.push({
+              lineNumber: leftLineNum++,
+              type: 'removed',
+              content: removedLine || '',
+              changes: changes.filter(c => c.type !== 'added'),
+            })
+            rightDiffLines.push({
+              lineNumber: rightLineNum++,
+              type: 'added',
+              content: addedLine || '',
+              changes: changes.filter(c => c.type !== 'removed'),
+            })
+            modified++
+          }
         } else if (hasRemoved) {
           leftDiffLines.push({
             lineNumber: leftLineNum++,

@@ -315,8 +315,13 @@ export default function ComparisonView({
     if (typeof window !== 'undefined') {
       // @ts-ignore
       window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
+        if (anchor) {
+          setAnchorEl(anchor)
+          setAnchorPosition(null)
+          return
+        }
         setAnchorEl(null)
-        setAnchorPosition(computeAnchorPosition(anchor))
+        setAnchorPosition(computeAnchorPosition(null))
       }
     }
     return () => {
@@ -404,14 +409,17 @@ export default function ComparisonView({
     <Box className="w-full relative z-10">
       <Menu
         anchorEl={anchorEl}
-        anchorReference={anchorPosition ? 'anchorPosition' : 'anchorEl'}
-        anchorPosition={anchorPosition || undefined}
+        anchorReference={anchorEl ? 'anchorEl' : 'anchorPosition'}
+        anchorPosition={anchorEl ? undefined : anchorPosition || computeAnchorPosition(null)}
         open={Boolean(anchorEl || anchorPosition)}
         onClose={handleMenuClose}
+        disableScrollLock
         PaperProps={{
           elevation: 0,
           className: "glass-card dark:glass-card-dark smooth-transition",
           sx: {
+            maxWidth: 'min(90vw, 420px)',
+            zIndex: (theme) => theme.zIndex.modal + 1,
             overflow: 'visible',
             filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.12))',
             mt: 1.5,
@@ -532,8 +540,8 @@ export default function ComparisonView({
           }}
           aria-label="comparison settings"
           onClick={(e) => {
-            setAnchorEl(null)
-            setAnchorPosition(computeAnchorPosition(e.currentTarget))
+            setAnchorEl(e.currentTarget)
+            setAnchorPosition(null)
           }}
         >
           <SettingsIcon />
