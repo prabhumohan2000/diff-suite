@@ -865,6 +865,7 @@ export default function ComparisonView({
               formatType={formatType}
               clickToBrowse={false}
               onFileInfoChange={(info) => setLeftFileInfo(info)}
+              fileInfo={leftFileInfo}
             >
               <>
                 <Box
@@ -1003,6 +1004,7 @@ export default function ComparisonView({
               formatType={formatType}
               clickToBrowse={false}
               onFileInfoChange={(info) => setRightFileInfo(info)}
+              fileInfo={rightFileInfo}
             >
               <>
                 <Box

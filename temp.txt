@@ -1,0 +1,120 @@
+      if (workerRef.current) {
+        workerRef.current.terminate()
+        workerRef.current = null
+      }
+    }
+  }, [initWorker])
+
+  // Expose an opener so parent toolbar Settings button can anchor this menu
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // @ts-ignore
+      window.comparisonViewOpenSettings = (anchor?: HTMLElement | null) => {
+        if (anchor) {
+          setAnchorEl(anchor)
+          setAnchorPosition(null)
+          return
+        }
+        setAnchorEl(null)
+        setAnchorPosition(computeAnchorPosition(null))
+      }
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        // @ts-ignore
+        window.comparisonViewOpenSettings = undefined
+      }
+    }
+  }, [computeAnchorPosition])
+
+  const handleCompare = useCallback(() => {
+    setLoading(true)
+    // Prefer using worker when available to avoid blocking the UI
+    if (!workerRef.current) {
+      const ok = initWorker()
+      if (!ok) {
+        console.warn('Worker unavailable; will run compare on main thread')
+      }
+    }
+    if (workerRef.current) {
+      const id = `${Date.now()}-${Math.random()}`
+      pendingRequestIdRef.current = id
+      try {
+        workerRef.current.postMessage({ id, left: leftContent, right: rightContent, formatType, options: { ...options, includeLineDiff: formatType !== 'text' } })
+      } catch (err) {
+        // If worker postMessage fails, fallback to main thread
+        console.error('Worker postMessage failed, falling back to main-thread compare', err)
+        // Fallthrough to main-thread path below
+      }
+      return
+    }
+  }, [leftContent, rightContent, formatType, options, initWorker])
+
+  const handleOptionChange = (key: keyof ComparisonOptions) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    // Reset current results to require clicking Compare again
+    setResult(null)
+    setShowResults(false)
+    onOptionsChange({
+      ...options,
+      [key]: event.target.checked,
+    } as ComparisonOptions)
+  }
+
+  const handleToggleCaseSensitive = useCallback(() => {
+    setResult(null)
+    setShowResults(false)
+    onOptionsChange({ ...options, caseSensitive: !options.caseSensitive })
+  }, [onOptionsChange, options])
+
+  const handleSwapMobile = useCallback(() => {
+    if (!leftContent && !rightContent) return
+    setResult(null)
+    setShowResults(false)
+    onLeftContentChange(rightContent)
+    onRightContentChange(leftContent)
+    setLeftFileInfo(rightFileInfo)
+    setRightFileInfo(leftFileInfo)
+  }, [leftContent, rightContent, onLeftContentChange, onRightContentChange, leftFileInfo, rightFileInfo])
+
+  // When user edits either textarea, hide results to avoid heavy recompute
+  // Note: We don't clear file info here - it should persist even if user edits the content
+  const handleLeftChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onLeftContentChange(content)
+    // Only clear file info if content is completely empty
+    if (!content.trim()) {
+      setLeftFileInfo(null)
+    }
+  }, [onLeftContentChange])
+
+  const handleRightChange = useCallback((content: string) => {
+    setResult(null)
+    setShowResults(false)
+    onRightContentChange(content)
+    // Only clear file info if content is completely empty
+    if (!content.trim()) {
+      setRightFileInfo(null)
+    }
+  }, [onRightContentChange])
+
+  return (
+    <Box className="w-full relative z-10">
+      <Menu
+        anchorEl={anchorEl}
+        anchorReference={anchorEl ? 'anchorEl' : 'anchorPosition'}
+        anchorPosition={anchorEl ? undefined : anchorPosition || computeAnchorPosition(null)}
+        open={Boolean(anchorEl || anchorPosition)}
+        onClose={handleMenuClose}
+        disableScrollLock
+        PaperProps={{
+          elevation: 0,
+          sx: {
+            maxWidth: 'min(90vw, 460px)',
+            minWidth: 320,
+            zIndex: (theme) => theme.zIndex.modal + 1,
+            overflow: 'visible',
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'rgba(30, 30, 30, 0.95)'

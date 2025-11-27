@@ -74,8 +74,8 @@ export default function DiffDisplay({
     modifiedText: isDark ? '#ede9fe' : '#6d28d9',
   }
 
-  // For JSON and XML, virtualized side-by-side view (unchanged)
-  if ((formatType === 'json' || formatType === 'xml') && result.differences && result.differences.length > 0) {
+  // For JSON and XML, virtualized side-by-side view
+  if (formatType === 'json' || formatType === 'xml') {
     const hasPrecomputed = (result as any).leftLines && (result as any).rightLines
     const lineDiff = hasPrecomputed
       ? { leftLines: (result as any).leftLines as any[], rightLines: (result as any).rightLines as any[] }
@@ -296,10 +296,10 @@ export default function DiffDisplay({
                       ? colors.removed
                       : colors.modified,
                 borderLeft: `3px solid ${diff.type === 'added'
-                    ? colors.addedBorder
-                    : diff.type === 'removed'
-                      ? colors.removedBorder
-                      : colors.modifiedBorder
+                  ? colors.addedBorder
+                  : diff.type === 'removed'
+                    ? colors.removedBorder
+                    : colors.modifiedBorder
                   }`,
               }}
             >

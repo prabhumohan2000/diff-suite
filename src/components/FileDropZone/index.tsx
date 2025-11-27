@@ -19,6 +19,7 @@ interface FileDropZoneProps {
   children: React.ReactNode
   clickToBrowse?: boolean
   onFileInfoChange?: (info: UploadedFileInfo | null, side: 'left' | 'right') => void
+  fileInfo?: UploadedFileInfo | null
 }
 
 export default function FileDropZone({
@@ -29,21 +30,22 @@ export default function FileDropZone({
   children,
   clickToBrowse = true,
   onFileInfoChange,
+  fileInfo,
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [fileInfo, setFileInfo] = useState<UploadedFileInfo | null>(null)
-  const [snackbar, setSnackbar] = useState<{ 
-    open: boolean; 
-    message: string;
-    severity: 'success' | 'info' | 'warning' | 'error';
-  }>({ 
-    open: false, 
+  const [internalFileInfo, setInternalFileInfo] = useState<UploadedFileInfo | null>(null)
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'info' | 'warning' | 'error'
+  }>({
+    open: false,
     message: '',
-    severity: 'error'
+    severity: 'error',
   })
   const [isProcessing, setIsProcessing] = useState(false)
   const theme = useTheme()
-  const isDark = theme.palette.mode === 'dark'
+  const isDark = theme.palette.mode === 'dark' // currently unused but kept for future styling hooks
 
   const isLargeFile = useCallback((file: File) => {
     return file.size > 500 * 1024 // Consider files over 500KB as large
@@ -62,30 +64,38 @@ export default function FileDropZone({
     }
   }, [formatType])
 
-  const isValidFile = useCallback((file: File): boolean => {
-    const acceptedExtensions = getAcceptedExtensions()
-    const fileName = file.name.toLowerCase()
-    return acceptedExtensions.some(ext => fileName.endsWith(ext))
-  }, [getAcceptedExtensions])
+  const isValidFile = useCallback(
+    (file: File): boolean => {
+      const acceptedExtensions = getAcceptedExtensions()
+      const fileName = file.name.toLowerCase()
+      return acceptedExtensions.some((ext) => fileName.endsWith(ext))
+    },
+    [getAcceptedExtensions]
+  )
 
   const formatFileSize = useCallback((bytes: number): string => {
     if (bytes === 0) return '0 Bytes'
     const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }, [])
 
   // Max allowed file size in bytes (2 MB)
-  const MAX_FILE_SIZE = 2 * 1024 * 1024
+  const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
+  const SIZE_BUFFER = 1024 // allow slight rounding difference (~1 KiB)
+  const MAX_FILE_SIZE = MAX_FILE_SIZE_BYTES + SIZE_BUFFER
 
-  const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!disabled) {
-      setIsDragging(true)
-    }
-  }, [disabled])
+  const handleDragEnter = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled) {
+        setIsDragging(true)
+      }
+    },
+    [disabled]
+  )
 
   const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -93,34 +103,57 @@ export default function FileDropZone({
     setIsDragging(false)
   }, [])
 
-  const processFile = useCallback((file: File) => {
-    // Validate file size first
-    if (file.size > MAX_FILE_SIZE) {
-      setSnackbar({
-        open: true,
-        message: `File is too large (${formatFileSize(file.size)}). Max allowed size is ${formatFileSize(
-          MAX_FILE_SIZE
-        )}.`,
-        severity: 'error'
-      })
-      onFileInfoChange?.(null, side)
-      return
-    }
-    if (isValidFile(file)) {
-      const info = {
+  const processFile = useCallback(
+    (file: File) => {
+      // Validate file size first
+      if (file.size > MAX_FILE_SIZE) {
+        setSnackbar({
+          open: true,
+          message: `File is too large (${formatFileSize(file.size)}). Max allowed size is ${formatFileSize(
+            MAX_FILE_SIZE
+          )}.`,
+          severity: 'error',
+        })
+        setInternalFileInfo(null)
+        onFileInfoChange?.(null, side)
+        return
+      }
+
+      if (!isValidFile(file)) {
+        const typeLabel =
+          formatType === 'json'
+            ? 'JSON (.json)'
+            : formatType === 'xml'
+            ? 'XML (.xml)'
+            : 'TXT (.txt or .text)'
+        setSnackbar({
+          open: true,
+          message: `Invalid file for ${formatType.toUpperCase()}. Expected ${typeLabel}.`,
+          severity: 'error',
+        })
+        setInternalFileInfo(null)
+        onFileInfoChange?.(null, side)
+        return
+      }
+
+      const info: UploadedFileInfo = {
         name: file.name,
         size: formatFileSize(file.size),
         type: file.type || 'Unknown',
       }
-      setFileInfo(info)
-      onFileInfoChange?.(info, side)
+
+      if (onFileInfoChange) {
+        onFileInfoChange(info, side)
+      } else {
+        setInternalFileInfo(info)
+      }
 
       if (isLargeFile(file)) {
         setIsProcessing(true)
         setSnackbar({
           open: true,
           message: 'Processing large file, please wait...',
-          severity: 'info'
+          severity: 'info',
         })
       }
 
@@ -130,15 +163,21 @@ export default function FileDropZone({
         if (isLargeFile(file)) {
           try {
             // @ts-ignore
-            window.globalOverlay?.show?.('Reading file…')
+            window.globalOverlay?.show?.('Reading file...')
           } catch {}
         }
-        file.text()
+
+        file
+          .text()
           .then(() => {
             onFileDrop(file, side)
             if (isLargeFile(file)) {
               setIsProcessing(false)
-              setSnackbar({ open: true, message: 'File processed successfully', severity: 'success' })
+              setSnackbar({
+                open: true,
+                message: 'File processed successfully',
+                severity: 'success',
+              })
               try {
                 // @ts-ignore
                 window.globalOverlay?.hide?.()
@@ -147,57 +186,56 @@ export default function FileDropZone({
           })
           .catch(() => {
             setIsProcessing(false)
-            setSnackbar({ open: true, message: 'Error reading file', severity: 'error' })
+            setSnackbar({
+              open: true,
+              message: 'Error reading file',
+              severity: 'error',
+            })
             try {
               // @ts-ignore
               window.globalOverlay?.hide?.()
             } catch {}
           })
       }, 0)
-    } else {
-      // Show feedback for invalid file types using snackbar
-      const typeLabel =
-        formatType === 'json'
-          ? 'JSON (.json)'
-          : formatType === 'xml'
-          ? 'XML (.xml)'
-          : 'TXT (.txt or .text)'
-      setSnackbar({
-        open: true,
-        message: `Invalid file for ${formatType.toUpperCase()}. Expected ${typeLabel}.`,
-        severity: 'error'
-      })
-      onFileInfoChange?.(null, side)
-    }
-  }, [formatFileSize, formatType, isLargeFile, isValidFile, onFileDrop, side, MAX_FILE_SIZE,onFileInfoChange])
+    },
+    [MAX_FILE_SIZE, formatFileSize, formatType, isLargeFile, isValidFile, onFileDrop, onFileInfoChange, side]
+  )
 
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    if (disabled) return
-    const files = event.target.files
-    if (files && files.length > 0) {
-      processFile(files[0])
-      // Reset input value to allow selecting the same file again
-      event.target.value = ''
-    }
-  }, [processFile, disabled])
+  const handleFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (disabled) return
+      const files = event.target.files
+      if (files && files.length > 0) {
+        processFile(files[0])
+        // Reset input value to allow selecting the same file again
+        event.target.value = ''
+      }
+    },
+    [processFile, disabled]
+  )
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
   }, [])
 
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
 
-    if (disabled) return
+      if (disabled) return
 
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length > 0) {
-      processFile(files[0])
-    }
-  }, [disabled, processFile])
+      const files = Array.from(e.dataTransfer.files)
+      if (files.length > 0) {
+        processFile(files[0])
+      }
+    },
+    [disabled, processFile]
+  )
+
+  const currentFileInfo = typeof fileInfo !== 'undefined' ? fileInfo : internalFileInfo
 
   return (
     <Box
@@ -207,7 +245,7 @@ export default function FileDropZone({
       onDrop={handleDrop}
       className="relative w-full"
     >
-      {fileInfo && (
+      {/* {currentFileInfo && (
         <Box
           className="mb-3 p-3 rounded-xl glass-card dark:glass-card-dark smooth-transition"
           sx={{
@@ -218,13 +256,13 @@ export default function FileDropZone({
           }}
         >
           <Typography variant="caption" className="block font-bold text-gray-800 dark:text-gray-200">
-            📄 {fileInfo.name}
+            📄 {currentFileInfo.name}
           </Typography>
           <Typography variant="caption" className="block text-gray-600 dark:text-gray-400 mt-1">
-            Size: {fileInfo.size} • Type: {fileInfo.type}
+            Size: {currentFileInfo.size} • Type: {currentFileInfo.type}
           </Typography>
         </Box>
-      )}
+      )} */}
       <Box className="relative">
         <input
           type="file"
@@ -234,13 +272,7 @@ export default function FileDropZone({
           style={{ display: 'none' }}
           id={`file-input-${side}`}
         />
-        {clickToBrowse ? (
-          <label htmlFor={`file-input-${side}`}>
-            {children}
-          </label>
-        ) : (
-          <>{children}</>
-        )}
+        {clickToBrowse ? <label htmlFor={`file-input-${side}`}>{children}</label> : <>{children}</>}
         {isDragging && (
           <Paper
             elevation={0}
@@ -251,9 +283,7 @@ export default function FileDropZone({
               backdropFilter: 'blur(10px)',
             }}
           >
-            <CloudUploadIcon 
-              className="text-6xl text-primary mb-4" 
-            />
+            <CloudUploadIcon className="text-6xl text-primary mb-4" />
             <Typography variant="h6" className="font-semibold text-primary">
               Drop file here
             </Typography>

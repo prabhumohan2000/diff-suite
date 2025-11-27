@@ -121,10 +121,13 @@ function computeDiffProgressive(
   })
 }
 
-// Normalize all string values in a JSON-like structure according to options
+// Normalize all string values in a JSON-like structure according to options.
+// When ignoreArrayOrder is true, arrays are also canonicalized by sorting
+// their normalized elements by a stable string representation so that
+// order-only changes disappear from downstream text diffs.
 function normalizeJSONStrings(
   value: any,
-  options: { ignoreWhitespace?: boolean; caseSensitive?: boolean }
+  options: { ignoreWhitespace?: boolean; caseSensitive?: boolean; ignoreArrayOrder?: boolean }
 ): any {
   if (typeof value === 'string') {
     let v = value
@@ -137,7 +140,11 @@ function normalizeJSONStrings(
     return v
   }
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeJSONStrings(item, options))
+    const normalizedItems = value.map((item) => normalizeJSONStrings(item, options))
+    if (options.ignoreArrayOrder) {
+      return normalizedItems.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    }
+    return normalizedItems
   }
   if (value && typeof value === 'object') {
     const out: any = {}
@@ -256,8 +263,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         let rightText = right
         const ignoreWhitespaceForJSON = options?.formattingSensitive ? false : options?.ignoreWhitespace !== false
         const shouldNormalizeWhitespace = ignoreWhitespaceForJSON
-        const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
-        if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
+        const shouldNormalizeStructure = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
+        if (shouldNormalizeWhitespace || shouldNormalizeStructure) {
           try {
             const leftParsed = JSON.parse(leftText)
             const rightParsed = JSON.parse(rightText)
@@ -266,10 +273,12 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
             let normLeft = normalizeJSONStrings(leftParsed, {
               ignoreWhitespace: ignoreWhitespaceForJSON,
               caseSensitive: options?.caseSensitive !== false,
+              ignoreArrayOrder: !!options?.ignoreArrayOrder,
             })
             let normRight = normalizeJSONStrings(rightParsed, {
               ignoreWhitespace: ignoreWhitespaceForJSON,
               caseSensitive: options?.caseSensitive !== false,
+              ignoreArrayOrder: !!options?.ignoreArrayOrder,
             })
 
             // When ignoreKeyOrder is true, sort keys on both sides so that
@@ -324,8 +333,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
 
           const ignoreWhitespaceForJSON = options?.formattingSensitive ? false : options?.ignoreWhitespace !== false
           const shouldNormalizeWhitespace = ignoreWhitespaceForJSON
-          const shouldNormalizeKeys = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
-          if (shouldNormalizeWhitespace || shouldNormalizeKeys) {
+          const shouldNormalizeStructure = !!options?.ignoreKeyOrder || !!options?.ignoreArrayOrder
+          if (shouldNormalizeWhitespace || shouldNormalizeStructure) {
             try {
               const leftParsed = JSON.parse(left)
               const rightParsed = JSON.parse(right)
@@ -333,10 +342,12 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               let normLeft = normalizeJSONStrings(leftParsed, {
                 ignoreWhitespace: ignoreWhitespaceForJSON,
                 caseSensitive: options?.caseSensitive !== false,
+                ignoreArrayOrder: !!options?.ignoreArrayOrder,
               })
               let normRight = normalizeJSONStrings(rightParsed, {
                 ignoreWhitespace: ignoreWhitespaceForJSON,
                 caseSensitive: options?.caseSensitive !== false,
+                ignoreArrayOrder: !!options?.ignoreArrayOrder,
               })
 
               if (options?.ignoreKeyOrder) {
@@ -364,7 +375,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
 
           const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: ignoreWhitespaceForJSON, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
-        } catch (_) {}
+        } catch (_) { }
       }
       const out: PostResult = { id, result: resultWithLines, type: 'result' }
       // @ts-ignore
@@ -410,7 +421,7 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
           try {
             leftText = normalizeXMLAttributes(leftText)
             rightText = normalizeXMLAttributes(rightText)
-          } catch {}
+          } catch { }
         }
         const diffOptions = {
           ignoreWhitespace: !!options?.ignoreWhitespace,
@@ -449,13 +460,25 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
               leftForDiff = normalizeXMLAttributes(left)
               rightForDiff = normalizeXMLAttributes(right)
             } else {
-              leftForDiff = prettifyXML(left)
-              rightForDiff = prettifyXML(right)
+              // Only prettify if the content looks minified or significantly different in structure
+              // This allows users to see original whitespace differences when "Ignore Whitespace" is enabled
+              const leftLines = (left || '').split('\n').length
+              const rightLines = (right || '').split('\n').length
+              const isMinified = leftLines < 3 || rightLines < 3
+              const isStructureDifferent = Math.abs(leftLines - rightLines) / Math.max(leftLines, rightLines) > 0.5
+
+              if (isMinified || isStructureDifferent) {
+                leftForDiff = prettifyXML(left)
+                rightForDiff = prettifyXML(right)
+              } else {
+                leftForDiff = left
+                rightForDiff = right
+              }
             }
           } catch { /* keep originals on failure */ }
           const ld = createLineDiff(leftForDiff, rightForDiff, { ignoreWhitespace: !!options?.ignoreWhitespace, caseSensitive: options?.caseSensitive !== false })
           resultWithLines = { ...comparisonResult, leftLines: ld.leftLines, rightLines: ld.rightLines }
-        } catch (_) {}
+        } catch (_) { }
       }
       const out: PostResult = { id, result: resultWithLines }
       // @ts-ignore
@@ -505,4 +528,4 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
 })
 
 
-export {}
+export { }

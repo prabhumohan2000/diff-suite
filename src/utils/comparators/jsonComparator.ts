@@ -363,8 +363,16 @@ export function compareJSON(
     const differences: DiffItem[] = []
     compareObjects(normalizedLeft, normalizedRight, '', options, differences)
 
-    // If structures match but whitespace should be respected, fall back to raw diff
-    if (differences.length === 0 && options.ignoreWhitespace === false) {
+    // If structures match but whitespace should be respected, fall back to raw diff.
+    // However, when we're explicitly ignoring key or array order we MUST NOT
+    // resurrect those purely structural differences via a raw text compare,
+    // otherwise "ignore key/array order" would still show changes.
+    if (
+      differences.length === 0 &&
+      options.ignoreWhitespace === false &&
+      !options.ignoreKeyOrder &&
+      !options.ignoreArrayOrder
+    ) {
       const rawDifferences = compareRawTextJSON(leftJSON, rightJSON)
       if (rawDifferences.length > 0) {
         return {
