@@ -1,9 +1,4 @@
-/**
- * Diff Checker Utility (shared)
- *
- * Copied from diff-checker/src/utils/diffChecker.ts to reuse the same
- * validation and comparison logic inside diff-suite without changing the UI.
- */
+import { diffLines, diffChars, diffWordsWithSpace } from 'diff'
 
 export type DiffType = 'added' | 'removed' | 'changed' | 'unchanged'
 
@@ -212,46 +207,24 @@ export const computeLineDiff = (
     return { same: true, parts: [{ value: left }] }
   }
 
-  // If original strings are equal, return as same
-  if (left === right) {
-    return { same: true, parts: [{ value: left }] }
-  }
+  // Prefer word-level diffing (with spaces) for readability, but fall back to
+  // character-level diff for very short strings where it gives better detail.
+  const useWordDiff = left.length > 40 || right.length > 40
+  const changes = useWordDiff
+    ? diffWordsWithSpace(left, right, { ignoreCase: options?.caseSensitive === false })
+    : diffChars(left, right, { ignoreCase: options?.caseSensitive === false })
 
-  // Simple character-level diff on original strings
-  const parts: Array<{ value: string; added?: boolean; removed?: boolean }> = []
-  let i = 0
-  let j = 0
+  // Filter out whitespace-only changes if ignoreWhitespace is true
+  const parts = changes.map(part => {
+    const isWhitespace = part.value.trim().length === 0
+    const shouldIgnore = options?.ignoreWhitespace && isWhitespace
 
-  while (i < left.length || j < right.length) {
-    if (i < left.length && j < right.length && left[i] === right[j]) {
-      // Characters match
-      let matchStr = ''
-      while (i < left.length && j < right.length && left[i] === right[j]) {
-        matchStr += left[i]
-        i++
-        j++
-      }
-      parts.push({ value: matchStr })
-    } else {
-      // Characters differ
-      let removedStr = ''
-      let addedStr = ''
-
-      if (i < left.length) {
-        removedStr = left[i]
-        i++
-      }
-
-      if (j < right.length) {
-        addedStr = right[j]
-        j++
-      }
-
-      if (removedStr) parts.push({ value: removedStr, removed: true })
-      if (addedStr) parts.push({ value: addedStr, added: true })
+    return {
+      value: part.value,
+      added: shouldIgnore ? undefined : part.added,
+      removed: shouldIgnore ? undefined : part.removed
     }
-  }
+  })
 
   return { same: false, parts }
 }
-

@@ -172,39 +172,47 @@ function sortObjectKeysDeep(value: any): any {
 const processLines = (
   lines: Array<{ lineNumber: number; type: string; content?: string }>,
   oppositeLines: Array<{ lineNumber: number; type: string; content?: string }>,
-  isLeft: boolean
+  isLeft: boolean,
+  options?: { ignoreWhitespace?: boolean; caseSensitive?: boolean }
 ) => {
   return lines.map((line, idx) => {
     const base: any = {
       lineNumber: line.lineNumber,
       type: line.type === 'changed' ? (isLeft ? 'removed' : 'added') : line.type,
-      content: line.content
-    };
-
-    const oppositeLine = oppositeLines[idx];
-    if (line.type === 'changed' && oppositeLine?.type === 'changed') {
-      const [content1, content2] = isLeft 
-        ? [line.content ?? '', oppositeLine.content ?? '']
-        : [oppositeLine.content ?? '', line.content ?? ''];
-      
-      const parts = computeLineDiff(content1, content2).parts;
-      
-      base.changes = parts.map(p => {
-        if (isLeft) {
-          return p.removed ? { type: 'removed', value: p.value }
-               : p.added ? { type: 'added', value: '' }
-               : { type: 'unchanged', value: p.value };
-        } else {
-          return p.added ? { type: 'added', value: p.value }
-               : p.removed ? { type: 'removed', value: '' }
-               : { type: 'unchanged', value: p.value };
-        }
-      });
+      content: line.content,
     }
 
-    return base;
-  });
-};
+    const oppositeLine = oppositeLines[idx]
+    if (line.type === 'changed' && oppositeLine?.type === 'changed') {
+      const [content1, content2] = isLeft
+        ? [line.content ?? '', oppositeLine.content ?? '']
+        : [oppositeLine.content ?? '', line.content ?? '']
+
+      const parts = computeLineDiff(content1, content2, {
+        ignoreWhitespace: !!options?.ignoreWhitespace,
+        caseSensitive: options?.caseSensitive !== false,
+      }).parts
+
+      base.changes = parts.map((p) => {
+        if (isLeft) {
+          return p.removed
+            ? { type: 'removed', value: p.value }
+            : p.added
+              ? { type: 'added', value: '' }
+              : { type: 'unchanged', value: p.value }
+        }
+
+        return p.added
+          ? { type: 'added', value: p.value }
+          : p.removed
+            ? { type: 'removed', value: '' }
+            : { type: 'unchanged', value: p.value }
+      })
+    }
+
+    return base
+  })
+}
 
 self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
   const { id, left, right, formatType, options } = ev.data
@@ -471,8 +479,8 @@ self.addEventListener('message', async (ev: MessageEvent<MessageIn>) => {
         d.rightLines.filter((x) => x.type === 'changed').length
       )
       // Build inline changes for 'changed' pairs
-      const leftLines = processLines(d.leftLines, d.rightLines, true);
-      const rightLines = processLines(d.rightLines, d.leftLines, false);
+      const leftLines = processLines(d.leftLines, d.rightLines, true, diffOptions)
+      const rightLines = processLines(d.rightLines, d.leftLines, false, diffOptions)
       const result = {
         identical: added === 0 && removed === 0 && modified === 0,
         summary: { added, removed, modified },

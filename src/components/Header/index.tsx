@@ -54,7 +54,7 @@ export default function Header({
             : 'rgba(255, 255, 255, 0.8)',
           backdropFilter: 'blur(20px)',
           borderBottom: '1px solid',
-          borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+          borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.05)',
           color: mode === 'dark' ? '#fff' : '#1e293b',
           transition: 'all 0.3s ease',
           zIndex: (theme) => theme.zIndex.drawer + 1,

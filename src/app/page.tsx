@@ -201,6 +201,8 @@ export default function Home() {
 
   const handleActionChange = useCallback((newAction: ActionType) => {
     setActionType(newAction)
+    setLeftContent('')
+    setRightContent('')
     setMobileOpen(false) // Close sidebar on selection (mobile)
   }, [])
 
@@ -569,8 +571,6 @@ export default function Home() {
                 <ActionButton
                   title="Reset"
                   onClick={handleReset}
-                  color="error"
-                  sx={{ color: 'error.main' }}
                 >
                   <RefreshIcon />
                 </ActionButton>
@@ -636,7 +636,6 @@ export default function Home() {
                         <ActionButton
                           title="Clear left"
                           onClick={() => setLeftContent('')}
-                          sx={{ color: 'error.main' }}
                         >
                           <RefreshIcon />
                         </ActionButton>
@@ -721,7 +720,6 @@ export default function Home() {
                         <ActionButton
                           title="Clear right"
                           onClick={() => setRightContent('')}
-                          sx={{ color: 'error.main' }}
                         >
                           <RefreshIcon />
                         </ActionButton>
@@ -789,12 +787,18 @@ export default function Home() {
           }}
         >
           <Box
-            sx={{
-              background: 'rgba(255, 255, 255, 0.95)',
+            sx={(theme) => ({
+              background: theme.palette.mode === 'dark'
+                ? 'rgba(30, 30, 30, 0.95)'
+                : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(20px)',
               borderRadius: '24px',
-              border: '1px solid rgba(124, 58, 237, 0.2)',
-              boxShadow: '0 20px 60px rgba(124, 58, 237, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+              border: theme.palette.mode === 'dark'
+                ? '1px solid rgba(124, 58, 237, 0.3)'
+                : '1px solid rgba(124, 58, 237, 0.2)',
+              boxShadow: theme.palette.mode === 'dark'
+                ? '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
+                : '0 20px 60px rgba(124, 58, 237, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
               p: 4,
               minWidth: 280,
               display: 'flex',
@@ -806,7 +810,7 @@ export default function Home() {
                 from: { transform: 'scale(0.9)', opacity: 0 },
                 to: { transform: 'scale(1)', opacity: 1 },
               },
-            }}
+            })}
           >
             <Box
               sx={{

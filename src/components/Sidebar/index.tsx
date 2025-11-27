@@ -27,7 +27,7 @@ import Brightness7Icon from '@mui/icons-material/Brightness7'
 import { useThemeMode } from '@/components/ThemeProvider'
 import { FormatType, ActionType } from '@/types'
 
-const DRAWER_WIDTH = 280
+const DRAWER_WIDTH = 230
 
 interface SidebarProps {
     mobileOpen: boolean
@@ -80,7 +80,7 @@ export default function Sidebar({
                         justifyContent: 'space-between',
                         borderBottom: '1px solid',
                         borderColor: theme.palette.mode === 'dark'
-                            ? 'rgba(255,255,255,0.06)'
+                            ? 'rgba(255,255,255,0.12)'
                             : 'rgba(15,23,42,0.06)',
                     }}
                 >
@@ -93,10 +93,11 @@ export default function Sidebar({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                color: 'white',
                                 boxShadow: '0 4px 10px rgba(124, 58, 237, 0.35)',
                             }}
                         >
-                            <CodeIcon sx={{ color: 'white', fontSize: 20 }} />
+                            <CodeIcon sx={{ color: 'inherit', fontSize: 20 }} />
                         </Box>
                         <Box>
                             <Typography
@@ -107,15 +108,6 @@ export default function Sidebar({
                                 }}
                             >
                                 Diff Suite
-                            </Typography>
-                            <Typography
-                                variant="caption"
-                                sx={{
-                                    color: 'text.secondary',
-                                    fontSize: '0.7rem',
-                                }}
-                            >
-                                Choose format and action
                             </Typography>
                         </Box>
                     </Box>
@@ -188,7 +180,10 @@ export default function Sidebar({
                     ))}
                 </List>
 
-                <Divider sx={{ mb: 4, borderColor: 'rgba(0,0,0,0.06)' }} />
+                <Divider sx={{
+                    mb: 4,
+                    borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
+                }} />
 
                 <Typography
                     variant="caption"
@@ -283,7 +278,7 @@ export default function Sidebar({
                         backdropFilter: 'blur(12px)',
                         borderRight: '1px solid',
                         borderColor: (theme) => theme.palette.mode === 'dark'
-                            ? 'rgba(255, 255, 255, 0.08)'
+                            ? 'rgba(255, 255, 255, 0.12)'
                             : 'rgba(0,0,0,0.05)',
                     },
                 }}
@@ -300,7 +295,10 @@ export default function Sidebar({
                         boxSizing: 'border-box',
                         width: DRAWER_WIDTH,
                         background: 'transparent',
-                        borderRight: '1px solid rgba(0,0,0,0.05)',
+                        borderRight: '1px solid',
+                        borderColor: (theme) => theme.palette.mode === 'dark'
+                            ? 'rgba(255, 255, 255, 0.12)'
+                            : 'rgba(0,0,0,0.05)',
                         top: 0,
                         height: '100vh',
                         zIndex: 10, // Below header (z-index 1100)

@@ -422,11 +422,17 @@ export default function ComparisonView({
             minWidth: 320,
             zIndex: (theme) => theme.zIndex.modal + 1,
             overflow: 'visible',
-            background: 'rgba(255, 255, 255, 0.98)',
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'rgba(30, 30, 30, 0.95)'
+              : 'rgba(255, 255, 255, 0.98)',
             backdropFilter: 'blur(24px)',
             borderRadius: '20px',
-            border: '1px solid rgba(124, 58, 237, 0.15)',
-            boxShadow: '0 20px 60px rgba(124, 58, 237, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+            border: (theme) => theme.palette.mode === 'dark'
+              ? '1px solid rgba(255, 255, 255, 0.08)'
+              : '1px solid rgba(124, 58, 237, 0.15)',
+            boxShadow: (theme) => theme.palette.mode === 'dark'
+              ? '0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
+              : '0 20px 60px rgba(124, 58, 237, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
             mt: 1.5,
             px: 0,
             py: 0,
@@ -482,7 +488,7 @@ export default function ComparisonView({
                     <Checkbox
                       checked={!!options.ignoreKeyOrder}
                       onChange={handleOptionChange('ignoreKeyOrder')}
-                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(124, 58, 237, 0.4)' }} />}
                       checkedIcon={(
                         <CheckBoxIcon
                           sx={{
@@ -522,7 +528,7 @@ export default function ComparisonView({
                     <Checkbox
                       checked={!!options.ignoreArrayOrder}
                       onChange={handleOptionChange('ignoreArrayOrder')}
-                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(124, 58, 237, 0.4)' }} />}
                       checkedIcon={(
                         <CheckBoxIcon
                           sx={{
@@ -601,7 +607,7 @@ export default function ComparisonView({
                     <Checkbox
                       checked={!!options.ignoreAttributeOrder}
                       onChange={handleOptionChange('ignoreAttributeOrder')}
-                      icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                      icon={<CheckBoxOutlineBlankIcon sx={{ color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(124, 58, 237, 0.4)' }} />}
                       checkedIcon={(
                         <CheckBoxIcon
                           sx={{
@@ -679,7 +685,7 @@ export default function ComparisonView({
                   <Checkbox
                     checked={!!options.ignoreWhitespace}
                     onChange={handleOptionChange('ignoreWhitespace')}
-                    icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                    icon={<CheckBoxOutlineBlankIcon sx={{ color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(124, 58, 237, 0.4)' }} />}
                     checkedIcon={(
                       <CheckBoxIcon
                         sx={{
@@ -720,7 +726,7 @@ export default function ComparisonView({
                   <Checkbox
                     checked={!!options.caseSensitive}
                     onChange={() => handleToggleCaseSensitive()}
-                    icon={<CheckBoxOutlineBlankIcon sx={{ color: 'rgba(124, 58, 237, 0.4)' }} />}
+                    icon={<CheckBoxOutlineBlankIcon sx={{ color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(124, 58, 237, 0.4)' }} />}
                     checkedIcon={(
                       <CheckBoxIcon
                         sx={{
@@ -768,7 +774,7 @@ export default function ComparisonView({
           </defs>
         </svg>
       </Menu>
-    <Box className="mb-3 flex w-full justify-center items-center gap-2">
+      <Box className="mb-3 flex w-full justify-center items-center gap-2">
         <Paper
           elevation={0}
           className="glass-card dark:glass-card-dark"
@@ -1114,157 +1120,159 @@ export default function ComparisonView({
         </Alert>
       </Snackbar>
 
-      {showResults && result && leftContent.trim() && rightContent.trim() && (
-        <Box ref={resultsRef} className="mt-6 smooth-transition">
-          {result.errors ? (
-            <>
-              <Typography variant="h6" className="font-bold text-red-500 mb-4 text-center" sx={{ marginBottom: '16px' }}>
-                Invalid Data
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={5.5}>
-                  {result.errors.left ? (
-                    <Alert
-                      severity="error"
-                      className="glass-card dark:glass-card-dark smooth-transition h-full"
-                      sx={{
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 16px rgba(244, 67, 54, 0.2)',
-                        '&:hover': {
-                          boxShadow: '0 6px 24px rgba(244, 67, 54, 0.3)',
-                        },
-                      }}
-                    >
-                      <AlertTitle className="font-bold">Left Content Error</AlertTitle>
-                      {result.errors.left.message}
-                      {(result.errors.left.line || result.errors.left.column) && (
-                        <Typography variant="body2" className="mt-2">
-                          {result.errors.left.line && `Line: ${result.errors.left.line}`}
-                          {result.errors.left.line && result.errors.left.column && ' | '}
-                          {result.errors.left.column && `Column: ${result.errors.left.column}`}
-                        </Typography>
-                      )}
-                    </Alert>
-                  ) : (
-                    <Alert severity="success" className="glass-card dark:glass-card-dark h-full">
-                      <AlertTitle className="font-bold">Left Content Valid</AlertTitle>
-                      The content is valid {formatType.toUpperCase()}
-                    </Alert>
-                  )}
-                </Grid>
+      {
+        showResults && result && leftContent.trim() && rightContent.trim() && (
+          <Box ref={resultsRef} className="mt-6 smooth-transition">
+            {result.errors ? (
+              <>
+                <Typography variant="h6" className="font-bold text-red-500 mb-4 text-center" sx={{ marginBottom: '16px' }}>
+                  Invalid Data
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={5.5}>
+                    {result?.errors?.left ? (
+                      <Alert
+                        severity="error"
+                        className="glass-card dark:glass-card-dark smooth-transition h-full"
+                        sx={{
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 16px rgba(244, 67, 54, 0.2)',
+                          '&:hover': {
+                            boxShadow: '0 6px 24px rgba(244, 67, 54, 0.3)',
+                          },
+                        }}
+                      >
+                        <AlertTitle className="font-bold">Left Content Error</AlertTitle>
+                        {result?.errors?.left?.message}
+                        {(result?.errors?.left?.line || result?.errors?.left?.column) && (
+                          <Typography variant="body2" className="mt-2">
+                            {result?.errors?.left?.line && `Line: ${result.errors.left.line}`}
+                            {result?.errors?.left?.line && result?.errors?.left?.column && ' | '}
+                            {result?.errors?.left?.column && `Column: ${result.errors.left.column}`}
+                          </Typography>
+                        )}
+                      </Alert>
+                    ) : (
+                      <Alert severity="success" className="glass-card dark:glass-card-dark h-full">
+                        <AlertTitle className="font-bold">Left Content Valid</AlertTitle>
+                        The content is valid {formatType.toUpperCase()}
+                      </Alert>
+                    )}
+                  </Grid>
 
-                <Grid
-                  item
-                  xs={12}
-                  md={1}
-                  sx={{
-                    display: { xs: 'none', md: 'flex' },
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Divider orientation="vertical" flexItem>
-                    <Chip
-                      icon={<CompareArrowsIcon />}
-                      label="VS"
-                      color="error"
-                      variant="outlined"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Divider>
-                </Grid>
+                  <Grid
+                    item
+                    xs={12}
+                    md={1}
+                    sx={{
+                      display: { xs: 'none', md: 'flex' },
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Divider orientation="vertical" flexItem>
+                      <Chip
+                        icon={<CompareArrowsIcon />}
+                        label="VS"
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </Divider>
+                  </Grid>
 
-                <Grid item xs={12} md={5.5}>
-                  {result.errors.right ? (
-                    <Alert
-                      severity="error"
-                      className="glass-card dark:glass-card-dark smooth-transition h-full"
-                      sx={{
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 16px rgba(244, 67, 54, 0.2)',
-                        '&:hover': {
-                          boxShadow: '0 6px 24px rgba(244, 67, 54, 0.3)',
-                        },
-                      }}
-                    >
-                      <AlertTitle className="font-bold">Right Content Error</AlertTitle>
-                      {result.errors.right.message}
-                      {(result.errors.right.line || result.errors.right.column) && (
-                        <Typography variant="body2" className="mt-2">
-                          {result.errors.right.line && `Line: ${result.errors.right.line}`}
-                          {result.errors.right.line && result.errors.right.column && ' | '}
-                          {result.errors.right.column && `Column: ${result.errors.right.column}`}
-                        </Typography>
-                      )}
-                    </Alert>
-                  ) : (
-                    <Alert severity="success" className="glass-card dark:glass-card-dark h-full">
-                      <AlertTitle className="font-bold">Right Content Valid</AlertTitle>
-                      The content is valid {formatType.toUpperCase()}
-                    </Alert>
-                  )}
+                  <Grid item xs={12} md={5.5}>
+                    {result?.errors?.right ? (
+                      <Alert
+                        severity="error"
+                        className="glass-card dark:glass-card-dark smooth-transition h-full"
+                        sx={{
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 16px rgba(244, 67, 54, 0.2)',
+                          '&:hover': {
+                            boxShadow: '0 6px 24px rgba(244, 67, 54, 0.3)',
+                          },
+                        }}
+                      >
+                        <AlertTitle className="font-bold">Right Content Error</AlertTitle>
+                        {result?.errors?.right?.message}
+                        {(result?.errors?.right?.line || result?.errors?.right?.column) && (
+                          <Typography variant="body2" className="mt-2">
+                            {result?.errors?.right?.line && `Line: ${result.errors.right.line}`}
+                            {result?.errors?.right?.line && result?.errors?.right?.column && ' | '}
+                            {result?.errors?.right?.column && `Column: ${result.errors.right.column}`}
+                          </Typography>
+                        )}
+                      </Alert>
+                    ) : (
+                      <Alert severity="success" className="glass-card dark:glass-card-dark h-full">
+                        <AlertTitle className="font-bold">Right Content Valid</AlertTitle>
+                        The content is valid {formatType.toUpperCase()}
+                      </Alert>
+                    )}
+                  </Grid>
                 </Grid>
-              </Grid>
-            </>
-          ) : result.identical ? (
-            <Alert
-              severity="success"
-              className="glass-card dark:glass-card-dark smooth-transition"
-              sx={{
-                borderRadius: '12px',
-                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.2)',
-                '&:hover': {
-                  boxShadow: '0 6px 24px rgba(16, 185, 129, 0.3)',
-                },
-              }}
-            >
-              <AlertTitle className="font-bold">No Differences Found</AlertTitle>
-              The two inputs are identical.
-            </Alert>
-          ) : (
-            <>
-              {result.summary && (
-                <Paper
-                  elevation={0}
-                  className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
-                  sx={{
-                    '&:hover': {
-                      boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                    },
-                  }}
-                >
-                  <Stack direction="row" spacing={2} flexWrap="wrap">
-                    <Chip
-                      label={`Added: ${result.summary.added}`}
-                      color="success"
-                      variant="outlined"
-                      sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                    />
-                    <Chip
-                      label={`Removed: ${result.summary.removed}`}
-                      color="error"
-                      variant="outlined"
-                      sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                    />
-                    <Chip
-                      label={`Modified: ${result.summary.modified}`}
-                      color="warning"
-                      variant="outlined"
-                      sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                    />
-                  </Stack>
-                </Paper>
-              )}
-              <DiffDisplay
-                formatType={formatType}
-                result={result}
-                leftContent={leftContent}
-                rightContent={rightContent}
-              />
-            </>
-          )}
-        </Box>
-      )}
-    </Box>
+              </>
+            ) : result?.identical ? (
+              <Alert
+                severity="success"
+                className="glass-card dark:glass-card-dark smooth-transition"
+                sx={{
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 16px rgba(16, 185, 129, 0.2)',
+                  '&:hover': {
+                    boxShadow: '0 6px 24px rgba(16, 185, 129, 0.3)',
+                  },
+                }}
+              >
+                <AlertTitle className="font-bold">No Differences Found</AlertTitle>
+                The two inputs are identical.
+              </Alert>
+            ) : (
+              <>
+                {result?.summary && (
+                  <Paper
+                    elevation={0}
+                    className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
+                    sx={{
+                      '&:hover': {
+                        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
+                      },
+                    }}
+                  >
+                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                      <Chip
+                        label={`Added: ${result?.summary?.added}`}
+                        color="success"
+                        variant="outlined"
+                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                      />
+                      <Chip
+                        label={`Removed: ${result?.summary?.removed}`}
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                      />
+                      <Chip
+                        label={`Modified: ${result?.summary?.modified}`}
+                        color="warning"
+                        variant="outlined"
+                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
+                      />
+                    </Stack>
+                  </Paper>
+                )}
+                <DiffDisplay
+                  formatType={formatType}
+                  result={result}
+                  leftContent={leftContent}
+                  rightContent={rightContent}
+                />
+              </>
+            )}
+          </Box>
+        )
+      }
+    </Box >
   )
 }
