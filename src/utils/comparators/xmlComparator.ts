@@ -27,7 +27,7 @@ export interface ComparisonResult {
 
 function normalizeXML(xmlString: string, options: ComparisonOptions): string {
   let normalized = xmlString.trim()
-  
+
   if (options.ignoreWhitespace) {
     // Remove whitespace between tags and normalize internal whitespace
     normalized = normalized
@@ -35,20 +35,20 @@ function normalizeXML(xmlString: string, options: ComparisonOptions): string {
       .replace(/\s+/g, ' ')
   }
   // If NOT ignoring whitespace, preserve it as-is (don't normalize)
-  
+
   // Normalize case for tag names and attribute names if case insensitive
   if (!options.caseSensitive) {
     // Convert tag names to lowercase
     normalized = normalized.replace(/<\/?([a-zA-Z][a-zA-Z0-9_-]*)/g, (match, tagName) => {
       return match.replace(tagName, tagName.toLowerCase())
     })
-    
+
     // Convert attribute names to lowercase (but not values)
     normalized = normalized.replace(/([a-zA-Z][a-zA-Z0-9_-]*)\s*=/g, (match, attrName) => {
       return attrName.toLowerCase() + '='
     })
   }
-  
+
   return normalized
 }
 
@@ -84,15 +84,15 @@ function objectToXMLString(obj: any): string {
 
 function normalizeValue(value: string, options: ComparisonOptions): string {
   let normalized = value
-  
+
   if (options.ignoreWhitespace) {
     normalized = normalized.replace(/\s+/g, ' ').trim()
   }
-  
+
   if (!options.caseSensitive) {
     normalized = normalized.toLowerCase()
   }
-  
+
   return normalized
 }
 
@@ -105,7 +105,7 @@ function compareAttributes(
 ): void {
   const leftAttrKeys = Object.keys(leftAttrs).filter(k => k.startsWith('@_'))
   const rightAttrKeys = Object.keys(rightAttrs).filter(k => k.startsWith('@_'))
-  
+
   // Normalize attribute names for case-insensitive comparison
   const normalizeAttrKey = (key: string) => {
     if (!options.caseSensitive) {
@@ -113,7 +113,7 @@ function compareAttributes(
     }
     return key
   }
-  
+
   // Create maps for comparison
   const leftAttrMap = new Map(leftAttrKeys.map(k => [normalizeAttrKey(k), { key: k, value: leftAttrs[k] }]))
   const rightAttrMap = new Map(rightAttrKeys.map(k => [normalizeAttrKey(k), { key: k, value: rightAttrs[k] }]))
@@ -141,11 +141,11 @@ function compareAttributes(
       })
     }
   }
-  
+
   // Check for removed and modified attributes
   for (const [normalizedKey, leftData] of leftAttrMap) {
     const attrName = leftData.key.substring(2)
-    
+
     if (!rightAttrMap.has(normalizedKey)) {
       differences.push({
         type: 'removed',
@@ -157,7 +157,7 @@ function compareAttributes(
       const rightData = rightAttrMap.get(normalizedKey)!
       const leftValue = normalizeValue(String(leftData.value), options)
       const rightValue = normalizeValue(String(rightData.value), options)
-      
+
       if (leftValue !== rightValue) {
         differences.push({
           type: 'modified',
@@ -169,7 +169,7 @@ function compareAttributes(
       }
     }
   }
-  
+
   // Check for added attributes
   for (const [normalizedKey, rightData] of rightAttrMap) {
     if (!leftAttrMap.has(normalizedKey)) {
@@ -195,7 +195,7 @@ function compareXMLObjects(
   if (typeof left !== 'object' || typeof right !== 'object') {
     const leftNorm = normalizeValue(String(left), options)
     const rightNorm = normalizeValue(String(right), options)
-    
+
     if (leftNorm !== rightNorm) {
       differences.push({
         type: 'modified',
@@ -231,10 +231,10 @@ function compareXMLObjects(
   // Separate attributes from elements
   const leftKeys = Object.keys(left)
   const rightKeys = Object.keys(right)
-  
+
   const leftAttrKeys = leftKeys.filter(k => k.startsWith('@_'))
   const rightAttrKeys = rightKeys.filter(k => k.startsWith('@_'))
-  
+
   const leftElemKeys = leftKeys.filter(k => !k.startsWith('@_'))
   const rightElemKeys = rightKeys.filter(k => !k.startsWith('@_'))
 
@@ -242,17 +242,17 @@ function compareXMLObjects(
   if (leftAttrKeys.length > 0 || rightAttrKeys.length > 0) {
     const leftAttrs: Record<string, any> = {}
     const rightAttrs: Record<string, any> = {}
-    
+
     leftAttrKeys.forEach(k => leftAttrs[k] = left[k])
     rightAttrKeys.forEach(k => rightAttrs[k] = right[k])
-    
+
     compareAttributes(leftAttrs, rightAttrs, path, options, differences)
   }
 
   // Compare elements - use normalized keys for case-insensitive comparison
   const leftElemMap = new Map(leftElemKeys.map(k => [normalizeKey(k), k]))
   const rightElemMap = new Map(rightElemKeys.map(k => [normalizeKey(k), k]))
-  
+
   const allNormalizedKeys = new Set([...leftElemMap.keys(), ...rightElemMap.keys()])
 
   for (const normalizedKey of allNormalizedKeys) {
@@ -281,12 +281,12 @@ function compareXMLObjects(
       const rightValue = right[rightKey!]
 
       if (typeof leftValue === 'object' && leftValue !== null &&
-          typeof rightValue === 'object' && rightValue !== null) {
+        typeof rightValue === 'object' && rightValue !== null) {
         compareXMLObjects(leftValue, rightValue, currentPath, options, differences)
       } else {
         const leftNorm = normalizeValue(String(leftValue), options)
         const rightNorm = normalizeValue(String(rightValue), options)
-        
+
         if (leftNorm !== rightNorm) {
           differences.push({
             type: 'modified',
@@ -312,7 +312,32 @@ export function compareXML(
       caseSensitive: true,
       ...options
     }
-    
+
+    // IMPORTANT: fast-xml-parser normalizes whitespace between attributes during parsing,
+    // making it impossible to detect whitespace-only differences in attributes.
+    // When whitespace sensitivity is required, we must use text-based comparison.
+    if (finalOptions.ignoreWhitespace === false) {
+      // Normalize for comparison (but preserve whitespace)
+      const normalizedLeft = normalizeXML(leftXML, finalOptions)
+      const normalizedRight = normalizeXML(rightXML, finalOptions)
+
+      // Simple text comparison - if they're different, report as modified
+      if (normalizedLeft !== normalizedRight) {
+        return {
+          identical: false,
+          differences: [{ type: 'modified', path: '$' }],
+          summary: { added: 0, removed: 0, modified: 1 },
+        }
+      }
+
+      // If identical after normalization, they're truly identical
+      return {
+        identical: true,
+        differences: [],
+        summary: { added: 0, removed: 0, modified: 0 },
+      }
+    }
+
     const normalizedLeft = normalizeXML(leftXML, finalOptions)
     const normalizedRight = normalizeXML(rightXML, finalOptions)
 

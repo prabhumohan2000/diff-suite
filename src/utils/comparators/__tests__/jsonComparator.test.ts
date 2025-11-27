@@ -77,6 +77,17 @@ describe('JSON Comparator', () => {
       const right = '{"a":[3,2,1]}'
       const result = compareJSON(left, right, { ignoreArrayOrder: true })
       expect(result.identical).toBe(true)
+      expect(result.summary.modified).toBe(0)
+    })
+
+    it('should ignore array order even when whitespace is significant', () => {
+      const left = '{\n  "items": [\n    "apple",\n    "banana",\n    "cherry"\n  ]\n}'
+      const right = '{\n  "items": [\n    "cherry",\n    "banana",\n    "apple"\n  ]\n}'
+      const result = compareJSON(left, right, { ignoreArrayOrder: true, ignoreWhitespace: false })
+      expect(result.identical).toBe(true)
+      expect(result.summary.added).toBe(0)
+      expect(result.summary.removed).toBe(0)
+      expect(result.summary.modified).toBe(0)
     })
 
     it('should be case sensitive by default', () => {

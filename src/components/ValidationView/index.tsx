@@ -151,6 +151,7 @@ export default function ValidationView({
           side="left"
           formatType={formatType}
           onFileInfoChange={(info) => setFileInfo(info)}
+          fileInfo={fileInfo}
         >
           <CodeEditor
             value={content}
