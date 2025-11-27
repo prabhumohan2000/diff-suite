@@ -76,7 +76,7 @@ export default function ValidationView({
     setLoading(true)
     try {
       let validationResult: ValidationResult
-      
+
       if (formatType === 'json') {
         validationResult = validateJSON(content)
       } else if (formatType === 'xml') {
@@ -100,30 +100,30 @@ export default function ValidationView({
 
   return (
     <Box className="w-full">
-      <Box className="mb-3 flex gap-4 flex-wrap justify-end">
+      <Box className="mb-3 flex w-full justify-center gap-4 flex-wrap">
         <Button
           variant="contained"
           size="large"
           onClick={() => startTransition(() => handleValidate())}
           disabled={loading || !content.trim()}
-          className="w-full sm:w-auto min-w-[160px] smooth-transition"
+          className="smooth-transition"
           sx={{
             fontWeight: 700,
             textTransform: 'none',
-            background: '#dc2626',
-            boxShadow: '0 4px 16px rgba(248, 113, 113, 0.45)',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+            boxShadow: '0 4px 16px rgba(124, 58, 237, 0.4)',
             py: 1.25,
             px: 4,
             borderRadius: 3,
             transition: 'all 0.3s ease',
             '&:hover': {
-              filter: 'brightness(108%)',
-              boxShadow: '0 6px 22px rgba(248, 113, 113, 0.6)',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #f472b6 100%)',
+              boxShadow: '0 6px 24px rgba(124, 58, 237, 0.5)',
               transform: 'translateY(-2px)',
             },
             '&:active': {
               transform: 'translateY(0)',
-              boxShadow: '0 2px 10px rgba(248, 113, 113, 0.5)',
+              boxShadow: '0 2px 12px rgba(124, 58, 237, 0.4)',
             },
             '&:disabled': {
               background: 'rgba(0, 0, 0, 0.12)',
@@ -135,7 +135,7 @@ export default function ValidationView({
           {loading ? 'Validating...' : 'Validate'}
         </Button>
       </Box>
-      <Paper 
+      <Paper
         elevation={0}
         className="glass-card dark:glass-card-dark p-4 smooth-transition"
       >
@@ -156,7 +156,6 @@ export default function ValidationView({
             value={content}
             onChange={handleContentEdit}
             formatType={formatType}
-            label={formatType.toUpperCase()}
             placeholder={`Paste your ${formatType.toUpperCase()} here...`}
           />
         </FileDropZone>
@@ -165,8 +164,8 @@ export default function ValidationView({
       {result && content.trim() && (
         <Box ref={resultsRef} className="mt-6 smooth-transition">
           {result.valid ? (
-            <Alert 
-              severity="success" 
+            <Alert
+              severity="success"
               icon={<CheckCircleIcon />}
               className="glass-card dark:glass-card-dark smooth-transition"
               sx={{
@@ -181,8 +180,8 @@ export default function ValidationView({
               Your {formatType.toUpperCase()} is well-formed and valid.
             </Alert>
           ) : (
-            <Alert 
-              severity="error" 
+            <Alert
+              severity="error"
               icon={<ErrorIcon />}
               className="glass-card dark:glass-card-dark smooth-transition"
               sx={{

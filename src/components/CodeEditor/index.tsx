@@ -31,6 +31,7 @@ function CodeEditor({
 }: CodeEditorProps) {
   const theme = useTheme()
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const isPlainText = formatType === 'text'
 
   const getPlaceholder = () => {
     if (placeholder) return placeholder
@@ -54,8 +55,8 @@ function CodeEditor({
   return (
     <Box className="w-full">
       {label && (
-        <Typography 
-          variant="subtitle2" 
+        <Typography
+          variant="subtitle2"
           className="mb-3 font-bold text-sm uppercase tracking-wide"
           sx={{ color: 'text.secondary' }}
         >
@@ -82,11 +83,11 @@ function CodeEditor({
           color: theme.palette.text.primary,
           boxSizing: 'border-box',
           resize: 'none',
-          whiteSpace: 'pre-wrap',
-          overflowX: 'hidden',
+          whiteSpace: isPlainText ? 'pre-wrap' : 'pre',
+          overflowX: isPlainText ? 'hidden' : 'auto',
           overflowY: 'auto',
-          wordBreak: 'break-word',
-          overflowWrap: 'anywhere',
+          wordBreak: isPlainText ? 'break-word' : 'normal',
+          overflowWrap: isPlainText ? 'break-word' : 'normal',
         }}
         data-gramm="false"
         data-enable-grammarly="false"
