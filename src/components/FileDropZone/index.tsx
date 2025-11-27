@@ -17,6 +17,7 @@ interface FileDropZoneProps {
   formatType: FormatType
   disabled?: boolean
   children: React.ReactNode
+  clickToBrowse?: boolean
   onFileInfoChange?: (info: UploadedFileInfo | null, side: 'left' | 'right') => void
 }
 
@@ -26,6 +27,7 @@ export default function FileDropZone({
   formatType,
   disabled = false,
   children,
+  clickToBrowse = true,
   onFileInfoChange,
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
@@ -232,9 +234,13 @@ export default function FileDropZone({
           style={{ display: 'none' }}
           id={`file-input-${side}`}
         />
-        <label htmlFor={`file-input-${side}`}>
-          {children}
-        </label>
+        {clickToBrowse ? (
+          <label htmlFor={`file-input-${side}`}>
+            {children}
+          </label>
+        ) : (
+          <>{children}</>
+        )}
         {isDragging && (
           <Paper
             elevation={0}

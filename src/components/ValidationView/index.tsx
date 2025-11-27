@@ -156,7 +156,6 @@ export default function ValidationView({
             value={content}
             onChange={handleContentEdit}
             formatType={formatType}
-            label={formatType.toUpperCase()}
             placeholder={`Paste your ${formatType.toUpperCase()} here...`}
           />
         </FileDropZone>

@@ -111,8 +111,53 @@ export default function Home() {
       try {
         const storage = window.localStorage
 
-        const savedLeft = storage.getItem('diffsuite_input_1') || ''
-        const savedRight = storage.getItem('diffsuite_input_2') || ''
+        // Use format+action-specific keys so JSON/XML/Text and Validate/Compare
+        // all have isolated storage.
+        const leftKey = `diffsuite_input_1_${formatType}_${actionType}`
+        const rightKey = `diffsuite_input_2_${formatType}_${actionType}`
+
+        let savedLeft = storage.getItem(leftKey) || ''
+        let savedRight = storage.getItem(rightKey) || ''
+
+        // Backwards compatibility: migrate older keys forward into the
+        // new format+action-specific keys.
+        if (!savedLeft && !savedRight) {
+          // v2: format-specific only (diffsuite_input_1_json, etc.)
+          const formatLeftKey = `diffsuite_input_1_${formatType}`
+          const formatRightKey = `diffsuite_input_2_${formatType}`
+
+          const formatLeft = storage.getItem(formatLeftKey) || ''
+          const formatRight = storage.getItem(formatRightKey) || ''
+
+          if (formatLeft || formatRight) {
+            savedLeft = formatLeft
+            savedRight = formatRight
+
+            if (formatLeft) storage.setItem(leftKey, formatLeft)
+            if (formatRight) storage.setItem(rightKey, formatRight)
+
+            storage.removeItem(formatLeftKey)
+            storage.removeItem(formatRightKey)
+          }
+        }
+
+        if (!savedLeft && !savedRight) {
+          // v1: legacy non-format-specific keys
+          const legacyLeft = storage.getItem('diffsuite_input_1') || ''
+          const legacyRight = storage.getItem('diffsuite_input_2') || ''
+
+          if (legacyLeft || legacyRight) {
+            savedLeft = legacyLeft
+            savedRight = legacyRight
+
+            if (legacyLeft) storage.setItem(leftKey, legacyLeft)
+            if (legacyRight) storage.setItem(rightKey, legacyRight)
+
+            storage.removeItem('diffsuite_input_1')
+            storage.removeItem('diffsuite_input_2')
+          }
+        }
+
         const savedOpt = storage.getItem('diffsuite_options')
 
         // Restore content/settings only when storage is enabled
@@ -135,35 +180,37 @@ export default function Home() {
   }, [enableStorage])
 
   // Save state to localStorage.
-  // Mode tabs (format/action) are always saved; content/options only when enabled,
-  // and cleared when both sides are empty.
-  useEffect(() => {
+    // Mode tabs (format/action) are always saved; content/options only when enabled,
+    // and cleared when both sides are empty.
+    useEffect(() => {
     if (pendingOptionsRestoreRef.current) {
       // Allow restored options to render before persisting again
       pendingOptionsRestoreRef.current = false
       return
     }
 
-    if (typeof window !== 'undefined') {
-      try {
-        const storage = window.localStorage
-        storage.setItem('diffsuite_format_type', formatType)
-        storage.setItem('diffsuite_action_type', actionType)
+      if (typeof window !== 'undefined') {
+        try {
+          const storage = window.localStorage
+          storage.setItem('diffsuite_format_type', formatType)
+          storage.setItem('diffsuite_action_type', actionType)
 
-        if (enableStorage) {
-          // Always persist comparison options so toggles survive refresh even when content is empty
-          storage.setItem('diffsuite_options', JSON.stringify(options))
+          if (enableStorage) {
+            // Always persist comparison options so toggles survive refresh even when content is empty
+            storage.setItem('diffsuite_options', JSON.stringify(options))
 
-          const hasContent = !!leftContent || !!rightContent
-          if (hasContent) {
-            if (leftContent) storage.setItem('diffsuite_input_1', leftContent)
-            else storage.removeItem('diffsuite_input_1')
+            // Use format+action-specific keys to prevent data leakage
+            // between JSON/XML/Text and Validate/Compare.
+            const leftKey = `diffsuite_input_1_${formatType}_${actionType}`
+            const rightKey = `diffsuite_input_2_${formatType}_${actionType}`
 
-            if (rightContent) storage.setItem('diffsuite_input_2', rightContent)
-            else storage.removeItem('diffsuite_input_2')
-          } else {
-            storage.removeItem('diffsuite_input_1')
-            storage.removeItem('diffsuite_input_2')
+          // Only save content when it exists - don't remove from localStorage when empty
+          // This allows reset button to clear UI while preserving data for refresh
+          if (leftContent) {
+            storage.setItem(leftKey, leftContent)
+          }
+          if (rightContent) {
+            storage.setItem(rightKey, rightContent)
           }
         }
       } catch (e) {
@@ -233,11 +280,25 @@ export default function Home() {
     localStorage.setItem('diff-suite-storage-enabled', String(enabled))
     if (!enabled) {
       const storages = [window.localStorage, window.sessionStorage]
+      const formats: FormatType[] = ['json', 'xml', 'text']
+      const actions: ActionType[] = ['validate', 'compare']
       for (const s of storages) {
         try {
+          // Remove legacy non-format-specific keys
           s.removeItem('diffsuite_input_1')
           s.removeItem('diffsuite_input_2')
           s.removeItem('diffsuite_options')
+
+          // Remove format-specific keys for all supported formats
+          for (const fmt of formats) {
+            s.removeItem(`diffsuite_input_1_${fmt}`)
+            s.removeItem(`diffsuite_input_2_${fmt}`)
+            // Remove format+action-specific keys for all combinations
+            for (const act of actions) {
+              s.removeItem(`diffsuite_input_1_${fmt}_${act}`)
+              s.removeItem(`diffsuite_input_2_${fmt}_${act}`)
+            }
+          }
         } catch { }
       }
       setLeftContent('')
@@ -327,18 +388,9 @@ export default function Home() {
   const handleReset = useCallback(() => {
     setLeftContent('')
     setRightContent('')
-    // Clear any persisted data for inputs only
-    try {
-      if (typeof window !== 'undefined') {
-        const storages = [window.localStorage, window.sessionStorage]
-        for (const s of storages) {
-          try {
-            s.removeItem('diffsuite_input_1')
-            s.removeItem('diffsuite_input_2')
-          } catch { }
-        }
-      }
-    } catch { }
+    // DO NOT clear localStorage - only clear UI state
+    // localStorage should only be cleared when session storage is disabled
+    // This allows data to be restored on page refresh
     // Attempt to reset any child view state if available
     try {
       // @ts-ignore - exposed by ComparisonView

@@ -85,12 +85,12 @@ export default function DiffDisplay({
       <Box>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Original text">
+            <VirtualPaper title="Original text" linesCount={lineDiff.leftLines.length}>
               <VirtualList lines={lineDiff.leftLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Changed text">
+            <VirtualPaper title="Changed text" linesCount={lineDiff.rightLines.length}>
               <VirtualList lines={lineDiff.rightLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
@@ -132,21 +132,21 @@ export default function DiffDisplay({
                         line.type === 'removed'
                           ? colors.removed
                           : line.type === 'added'
-                          ? colors.added
-                          : line.type === 'modified'
-                          // For text compare, treat modified lines on the
-                          // left like a soft removal background so the two
-                          // sides feel distinct.
-                          ? colors.removed
-                          : 'transparent',
+                            ? colors.added
+                            : line.type === 'modified'
+                              // For text compare, treat modified lines on the
+                              // left like a soft removal background so the two
+                              // sides feel distinct.
+                              ? colors.removed
+                              : 'transparent',
                       borderLeft:
                         line.type === 'removed'
                           ? `3px solid ${colors.removedBorder}`
                           : line.type === 'added'
-                          ? `3px solid ${colors.addedBorder}`
-                          : line.type === 'modified'
-                          ? `3px solid ${colors.modifiedBorder}`
-                          : 'none',
+                            ? `3px solid ${colors.addedBorder}`
+                            : line.type === 'modified'
+                              ? `3px solid ${colors.modifiedBorder}`
+                              : 'none',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       overflowWrap: 'break-word',
@@ -210,20 +210,20 @@ export default function DiffDisplay({
                         line.type === 'added'
                           ? colors.added
                           : line.type === 'removed'
-                          ? colors.removed
-                          : line.type === 'modified'
-                          // On the right, modified lines get the added
-                          // background to contrast with the left side.
-                          ? colors.added
-                          : 'transparent',
+                            ? colors.removed
+                            : line.type === 'modified'
+                              // On the right, modified lines get the added
+                              // background to contrast with the left side.
+                              ? colors.added
+                              : 'transparent',
                       borderLeft:
                         line.type === 'added'
                           ? `3px solid ${colors.addedBorder}`
                           : line.type === 'removed'
-                          ? `3px solid ${colors.removedBorder}`
-                          : line.type === 'modified'
-                          ? `3px solid ${colors.modifiedBorder}`
-                          : 'none',
+                            ? `3px solid ${colors.removedBorder}`
+                            : line.type === 'modified'
+                              ? `3px solid ${colors.modifiedBorder}`
+                              : 'none',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                       overflowWrap: 'break-word',
@@ -293,15 +293,14 @@ export default function DiffDisplay({
                   diff.type === 'added'
                     ? colors.added
                     : diff.type === 'removed'
-                    ? colors.removed
-                    : colors.modified,
-                borderLeft: `3px solid ${
-                  diff.type === 'added'
+                      ? colors.removed
+                      : colors.modified,
+                borderLeft: `3px solid ${diff.type === 'added'
                     ? colors.addedBorder
                     : diff.type === 'removed'
-                    ? colors.removedBorder
-                    : colors.modifiedBorder
-                }`,
+                      ? colors.removedBorder
+                      : colors.modifiedBorder
+                  }`,
               }}
             >
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -334,7 +333,12 @@ export default function DiffDisplay({
 }
 
 // Virtualized paper wrapper and list; tuned to match editor font sizing (unchanged)
-function VirtualPaper({ title, children }: { title: string; children: React.ReactNode }) {
+function VirtualPaper({ title, children, linesCount }: { title: string; children: React.ReactNode; linesCount: number }) {
+  const ROW_HEIGHT = 20
+  // Calculate height based on lines, but cap it at 500px (same as max-height for other views)
+  // Add some buffer for padding/header
+  const contentHeight = Math.min(linesCount * ROW_HEIGHT, 460)
+
   return (
     <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 1.5 }}>
       {title ? (
@@ -344,11 +348,13 @@ function VirtualPaper({ title, children }: { title: string; children: React.Reac
       ) : null}
       <Box
         sx={{
-          height: 460,
+          height: contentHeight,
+          minHeight: 100, // Ensure at least some height
           fontFamily:
             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
           fontSize: '0.875rem',
           lineHeight: 1.5,
+          transition: 'height 0.3s ease',
         }}
       >
         {children}
@@ -375,8 +381,8 @@ function VirtualList({
     const borderLeft = inlineChanges
       ? 'none'
       : (line.type === 'added'
-          ? `2px solid ${colors.addedBorder}`
-          : line.type === 'removed'
+        ? `2px solid ${colors.addedBorder}`
+        : line.type === 'removed'
           ? `2px solid ${colors.removedBorder}`
           : 'none')
 

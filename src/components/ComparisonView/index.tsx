@@ -39,15 +39,9 @@ import DiffDisplay from '@/components/DiffDisplay'
 import FileDropZone, { UploadedFileInfo } from '@/components/FileDropZone'
 import ActionButton from '@/components/ActionButton'
 import { FormatType, ComparisonResult, ComparisonOptions, ValidationResult } from '@/types'
-import { compareJSON, reorderObjectKeys } from '@/utils/comparators/jsonComparator'
-import { compareXML } from '@/utils/comparators/xmlComparator'
-import { computeDiff, sortObjectKeys, computeLineDiff } from '@/utils/diffUtils/diffChecker'
-import { createLineDiff } from '@/utils/diffUtils/lineDiff'
-import { normalizeXMLAttributes } from '@/utils/diffUtils/xmlNormalizer'
 import { prettifyXML } from '@/utils/diffUtils/xmlFormatter'
 import { validateJSON } from '@/utils/validators/jsonValidator'
 import { validateXML } from '@/utils/validators/xmlValidator'
-import { compareTextEnhanced } from '@/utils/comparators/textComparator'
 
 interface ComparisonViewProps {
   formatType: FormatType
@@ -869,6 +863,7 @@ export default function ComparisonView({
               }}
               side="left"
               formatType={formatType}
+              clickToBrowse={false}
               onFileInfoChange={(info) => setLeftFileInfo(info)}
             >
               <>
@@ -1006,6 +1001,7 @@ export default function ComparisonView({
               }}
               side="right"
               formatType={formatType}
+              clickToBrowse={false}
               onFileInfoChange={(info) => setRightFileInfo(info)}
             >
               <>
@@ -1233,14 +1229,22 @@ export default function ComparisonView({
                 {result?.summary && (
                   <Paper
                     elevation={0}
-                    className="glass-card dark:glass-card-dark p-4 mb-4 smooth-transition"
+                    className="glass-card dark:glass-card-dark mb-4 smooth-transition"
                     sx={{
+                      p: { xs: 1.5, md: 2 },
                       '&:hover': {
                         boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
                       },
                     }}
                   >
-                    <Stack direction="row" spacing={2} flexWrap="wrap">
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: { xs: 1, sm: 2 },
+                        justifyContent: { xs: 'center', sm: 'flex-start' },
+                      }}
+                    >
                       <Chip
                         label={`Added: ${result?.summary?.added}`}
                         color="success"
@@ -1259,7 +1263,7 @@ export default function ComparisonView({
                         variant="outlined"
                         sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
                       />
-                    </Stack>
+                    </Box>
                   </Paper>
                 )}
                 <DiffDisplay

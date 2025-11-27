@@ -13,6 +13,11 @@
   max-height: 300px;
 }
 
+.largeTextarea:focus,
+.largeTextarea:focus-visible {
+  outline: none; /* Remove extra Firefox focus ring */
+}
+
 @media (min-width: 900px) {
   .largeTextarea {
     height: 400px;
