@@ -1,3 +1,4 @@
+
 'use client'
 
 import { Box, Paper, Typography, Grid, useTheme } from '@mui/material'
@@ -66,12 +67,18 @@ export default function DiffDisplay({
     added: isDark ? 'rgba(16, 185, 129, 0.32)' : 'rgba(22, 163, 74, 0.22)',
     removed: isDark ? 'rgba(239, 68, 68, 0.34)' : 'rgba(248, 113, 113, 0.24)',
     modified: isDark ? 'rgba(168, 85, 247, 0.32)' : 'rgba(168, 85, 247, 0.22)',
+    total: isDark ? 'rgba(59, 130, 246, 0.32)' : 'rgba(37, 99, 235, 0.22)',
+    unchanged: isDark ? 'rgba(148, 163, 184, 0.32)' : 'rgba(100, 116, 139, 0.22)',
     addedBorder: isDark ? '#22c55e' : '#16a34a',
     removedBorder: isDark ? '#ef4444' : '#dc2626',
     modifiedBorder: isDark ? '#a855f7' : '#a855f7',
+    totalBorder: isDark ? '#3b82f6' : '#2563eb',
+    unchangedBorder: isDark ? '#94a3b8' : '#64748b',
     addedText: isDark ? '#6ee7b7' : '#166534',
     removedText: isDark ? '#fecaca' : '#7f1d1d',
     modifiedText: isDark ? '#ede9fe' : '#6d28d9',
+    totalText: isDark ? '#bfdbfe' : '#1e40af',
+    unchangedText: isDark ? '#e2e8f0' : '#475569',
   }
 
   // For JSON and XML, virtualized side-by-side view
@@ -81,16 +88,40 @@ export default function DiffDisplay({
       ? { leftLines: (result as any).leftLines as any[], rightLines: (result as any).rightLines as any[] }
       : createLineDiff(leftContent, rightContent)
 
+    // Calculate statistics for left and right sides
+    const leftStats = {
+      removed: lineDiff.leftLines.filter(l => l.type === 'removed').length,
+      added: lineDiff.leftLines.filter(l => l.type === 'added').length,
+      total: lineDiff.leftLines.length,
+      unchanged: lineDiff.leftLines.filter(l => l.type === 'unchanged').length,
+    }
+    const rightStats = {
+      removed: lineDiff.rightLines.filter(l => l.type === 'removed').length,
+      added: lineDiff.rightLines.filter(l => l.type === 'added').length,
+      total: lineDiff.rightLines.length,
+      unchanged: lineDiff.rightLines.filter(l => l.type === 'unchanged').length,
+    }
+
     return (
       <Box>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Original text" linesCount={lineDiff.leftLines.length}>
+            <VirtualPaper
+              title="Original text"
+              linesCount={lineDiff.leftLines.length}
+              stats={leftStats}
+              colors={colors}
+            >
               <VirtualList lines={lineDiff.leftLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
           <Grid item xs={12} md={6}>
-            <VirtualPaper title="Changed text" linesCount={lineDiff.rightLines.length}>
+            <VirtualPaper
+              title="Changed text"
+              linesCount={lineDiff.rightLines.length}
+              stats={rightStats}
+              colors={colors}
+            >
               <VirtualList lines={lineDiff.rightLines} colors={colors} inlineChanges={false} />
             </VirtualPaper>
           </Grid>
@@ -119,9 +150,115 @@ export default function DiffDisplay({
                 },
               }}
             >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Left (Original)
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Left (Original)
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {(() => {
+                    // For left side, count:
+                    // - Each fully removed line as 1 removal
+                    // - Each inline removed token on modified lines as 1 removal
+                    // Added counts only consider whole added lines; inline additions
+                    // are attributed visually but not double-counted here.
+                    const removed = result.leftLines.reduce((sum: number, line: any) => {
+                      if (line.type === 'removed') return sum + 1
+                      if (line.type === 'modified' && Array.isArray(line.changes)) {
+                        return sum + line.changes.filter(
+                          (c: any) =>
+                            c.type === 'removed' &&
+                            typeof c.value === 'string' &&
+                            c.value.trim().length > 0
+                        ).length
+                      }
+                      return sum
+                    }, 0)
+                    const added = result.leftLines.reduce((sum: number, line: any) => {
+                      if (line.type === 'added') return sum + 1
+                      if (line.type === 'modified' && Array.isArray(line.changes)) {
+                        return sum + line.changes.filter(
+                          (c: any) =>
+                            c.type === 'added' &&
+                            typeof c.value === 'string' &&
+                            c.value.trim().length > 0
+                        ).length
+                      }
+                      return sum
+                    }, 0)
+                    const total = result.leftLines.length
+                    const unchanged = result.leftLines.filter((l: any) => !l.type || l.type === 'unchanged').length
+
+                    return (
+                      <>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: colors.total,
+                            color: colors.totalText,
+                            border: `1px solid ${colors.totalBorder}`,
+                          }}
+                        >
+                          Total: {total}
+                        </Box>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: colors.unchanged,
+                            color: colors.unchangedText,
+                            border: `1px solid ${colors.unchangedBorder}`,
+                          }}
+                        >
+                          Unchanged: {unchanged}
+                        </Box>
+                        {removed > 0 && (
+                          <Box
+                            component="span"
+                            sx={{
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              backgroundColor: colors.removed,
+                              color: colors.removedText,
+                              border: `1px solid ${colors.removedBorder}`,
+                            }}
+                          >
+                            Removed: {removed}
+                          </Box>
+                        )}
+                        {added > 0 && (
+                          <Box
+                            component="span"
+                            sx={{
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              backgroundColor: colors.added,
+                              color: colors.addedText,
+                              border: `1px solid ${colors.addedBorder}`,
+                            }}
+                          >
+                            Added: {added}
+                          </Box>
+                        )}
+                      </>
+                    )
+                  })()}
+                </Box>
+              </Box>
               <Box sx={{ overflowX: 'hidden' }}>
                 {result.leftLines.map((line, index) => (
                   <Box
@@ -197,9 +334,111 @@ export default function DiffDisplay({
                 },
               }}
             >
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                Right (Modified)
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Right (Modified)
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {(() => {
+                    // For the right side, count token-level additions/removals:
+                    // - Each fully added/removed line as 1
+                    // - Each inline added/removed token on modified lines as 1
+                    const added = result.rightLines.reduce((sum: number, line: any) => {
+                      if (line.type === 'added') return sum + 1
+                      if (line.type === 'modified' && Array.isArray(line.changes)) {
+                        return sum + line.changes.filter(
+                          (c: any) =>
+                            c.type === 'added' &&
+                            typeof c.value === 'string' &&
+                            c.value.trim().length > 0
+                        ).length
+                      }
+                      return sum
+                    }, 0)
+                    const removed = result.rightLines.reduce((sum: number, line: any) => {
+                      if (line.type === 'removed') return sum + 1
+                      if (line.type === 'modified' && Array.isArray(line.changes)) {
+                        return sum + line.changes.filter(
+                          (c: any) =>
+                            c.type === 'removed' &&
+                            typeof c.value === 'string' &&
+                            c.value.trim().length > 0
+                        ).length
+                      }
+                      return sum
+                    }, 0)
+                    const total = result.rightLines.length
+                    const unchanged = result.rightLines.filter((l: any) => !l.type || l.type === 'unchanged').length
+
+                    return (
+                      <>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: colors.total,
+                            color: colors.totalText,
+                            border: `1px solid ${colors.totalBorder}`,
+                          }}
+                        >
+                          Total: {total}
+                        </Box>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: colors.unchanged,
+                            color: colors.unchangedText,
+                            border: `1px solid ${colors.unchangedBorder}`,
+                          }}
+                        >
+                          Unchanged: {unchanged}
+                        </Box>
+                        {removed > 0 && (
+                          <Box
+                            component="span"
+                            sx={{
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: '8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              backgroundColor: colors.removed,
+                              color: colors.removedText,
+                              border: `1px solid ${colors.removedBorder}`,
+                            }}
+                          >
+                            Removed: {removed}
+                          </Box>
+                        )}
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1,
+                            py: 0.25,
+                            borderRadius: '8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: colors.added,
+                            color: colors.addedText,
+                            border: `1px solid ${colors.addedBorder}`,
+                          }}
+                        >
+                          Added: {added}
+                        </Box>
+                      </>
+                    )
+                  })()}
+                </Box>
+              </Box>
               <Box sx={{ overflowX: 'hidden' }}>
                 {result.rightLines.map((line, index) => (
                   <Box
@@ -333,7 +572,13 @@ export default function DiffDisplay({
 }
 
 // Virtualized paper wrapper and list; tuned to match editor font sizing (unchanged)
-function VirtualPaper({ title, children, linesCount }: { title: string; children: React.ReactNode; linesCount: number }) {
+function VirtualPaper({ title, children, linesCount, stats, colors }: {
+  title: string;
+  children: React.ReactNode;
+  linesCount: number;
+  stats?: { added: number; removed: number; modified?: number; total?: number; unchanged?: number };
+  colors?: any;
+}) {
   const ROW_HEIGHT = 20
   // Calculate height based on lines, but cap it at 500px (same as max-height for other views)
   // Add some buffer for padding/header
@@ -341,11 +586,102 @@ function VirtualPaper({ title, children, linesCount }: { title: string; children
 
   return (
     <Paper elevation={0} className="glass-card dark:glass-card-dark" sx={{ p: 1.5 }}>
-      {title ? (
-        <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>
-          {title}
-        </Typography>
-      ) : null}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+        {title ? (
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            {title}
+          </Typography>
+        ) : null}
+        {stats && colors && (
+          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            {typeof stats.total === 'number' && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.2,
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: colors.total,
+                  color: colors.totalText,
+                  border: `1px solid ${colors.totalBorder}`,
+                }}
+              >
+                Total: {stats.total}
+              </Box>
+            )}
+            {typeof stats.unchanged === 'number' && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.2,
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: colors.unchanged,
+                  color: colors.unchangedText,
+                  border: `1px solid ${colors.unchangedBorder}`,
+                }}
+              >
+                Unchanged: {stats.unchanged}
+              </Box>
+            )}
+            {stats.removed > 0 && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.2,
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: colors.removed,
+                  color: colors.removedText,
+                  border: `1px solid ${colors.removedBorder}`,
+                }}
+              >
+                Removed: {stats.removed}
+              </Box>
+            )}
+            {typeof stats.added === 'number' && stats.added > 0 && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.2,
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: colors.added,
+                  color: colors.addedText,
+                  border: `1px solid ${colors.addedBorder}`,
+                }}
+              >
+                Added: {stats.added}
+              </Box>
+            )}
+            {stats.modified !== undefined && stats.modified > 0 && (
+              <Box
+                component="span"
+                sx={{
+                  px: 0.75,
+                  py: 0.2,
+                  borderRadius: '6px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: colors.modified,
+                  color: colors.modifiedText,
+                  border: `1px solid ${colors.modifiedBorder}`,
+                }}
+              >
+                Modified: {stats.modified}
+              </Box>
+            )}
+          </Box>
+        )}
+      </Box>
       <Box
         sx={{
           height: contentHeight,

@@ -1228,46 +1228,6 @@ export default function ComparisonView({
               </Alert>
             ) : (
               <>
-                {result?.summary && (
-                  <Paper
-                    elevation={0}
-                    className="glass-card dark:glass-card-dark mb-4 smooth-transition"
-                    sx={{
-                      p: { xs: 1.5, md: 2 },
-                      '&:hover': {
-                        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: { xs: 1, sm: 2 },
-                        justifyContent: { xs: 'center', sm: 'flex-start' },
-                      }}
-                    >
-                      <Chip
-                        label={`Added: ${result?.summary?.added}`}
-                        color="success"
-                        variant="outlined"
-                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                      />
-                      <Chip
-                        label={`Removed: ${result?.summary?.removed}`}
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                      />
-                      <Chip
-                        label={`Modified: ${result?.summary?.modified}`}
-                        color="warning"
-                        variant="outlined"
-                        sx={{ fontWeight: 600, transition: 'all 0.2s', '&:hover': { transform: 'scale(1.05)' } }}
-                      />
-                    </Box>
-                  </Paper>
-                )}
                 <DiffDisplay
                   formatType={formatType}
                   result={result}
