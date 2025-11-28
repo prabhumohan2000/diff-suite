@@ -313,10 +313,17 @@ export function compareXML(
       ...options
     }
 
+    const wantsWhitespaceSensitive = finalOptions.ignoreWhitespace === false
+    const wantsAttributeOrderIgnored = !!finalOptions.ignoreAttributeOrder
+
     // IMPORTANT: fast-xml-parser normalizes whitespace between attributes during parsing,
     // making it impossible to detect whitespace-only differences in attributes.
-    // When whitespace sensitivity is required, we must use text-based comparison.
-    if (finalOptions.ignoreWhitespace === false) {
+    // When whitespace sensitivity is required *and* attribute order should be
+    // treated as significant, we must use text-based comparison. If the user
+    // has asked to ignore attribute order, we fall back to structural comparison
+    // even when ignoreWhitespace is false so that attribute-order-only changes
+    // do not register as differences.
+    if (wantsWhitespaceSensitive && !wantsAttributeOrderIgnored) {
       // Normalize for comparison (but preserve whitespace)
       const normalizedLeft = normalizeXML(leftXML, finalOptions)
       const normalizedRight = normalizeXML(rightXML, finalOptions)

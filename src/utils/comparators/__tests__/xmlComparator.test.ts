@@ -70,6 +70,58 @@ describe('XML Comparator', () => {
       const result = compareXML(left, right, { ignoreAttributeOrder: true })
       expect(result.identical).toBe(true)
     })
+
+    it('should ignore attribute order even when whitespace sensitivity is enabled', () => {
+      const left = '<user id="1" role="admin" active="true"/>'
+      const right = '<user   active="true"   id="1"   role="admin"/>'
+      const result = compareXML(left, right, {
+        ignoreAttributeOrder: true,
+        ignoreWhitespace: false,
+      })
+      expect(result.identical).toBe(true)
+    })
+
+    it('should treat complex XML as identical when only root attribute order differs and attribute order is ignored', () => {
+      const left = `<company name="techCorp" id="C001">
+<department  name="Engineering" id="D10">
+<team id="T1" lead="Alice">
+<employee id="E101" name="John" role="Developer">
+<task id="TS1" status="Open">Implement API</task>
+</employee>
+</team>
+ 
+        <team id="T2" lead="Bob">
+<employee id="E102" name="Sarah" role="Tester">
+<task id="TS2" status="Closed">Run Test Cases</task>
+</employee>
+</team>
+</department>
+</company>`
+
+      const right = `<company id="C001" name="techCorp">
+<department  name="Engineering" id="D10">
+<team id="T1" lead="Alice">
+<employee id="E101" name="John" role="Developer">
+<task id="TS1" status="Open">Implement API</task>
+</employee>
+</team>
+ 
+        <team id="T2" lead="Bob">
+<employee id="E102" name="Sarah" role="Tester">
+<task id="TS2" status="Closed">Run Test Cases</task>
+</employee>
+</team>
+</department>
+</company>`
+
+      const result = compareXML(left, right, {
+        ignoreAttributeOrder: true,
+        ignoreWhitespace: true,
+      })
+
+      expect(result.identical).toBe(true)
+      expect(result.differences.length).toBe(0)
+    })
   })
 })
 
